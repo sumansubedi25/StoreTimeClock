@@ -4,6 +4,6 @@ runConfig:
   concurrency: 20
 env:
   - variable: MANAGER_UID
-    value: REPLACE_WITH_MANAGER_UID
+    value: CRWIoygqx9fYs2RJlQsBhLiCUT12
     availability:
       - RUNTIME
