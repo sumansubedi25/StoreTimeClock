@@ -8,9 +8,13 @@ export async function GET(req:Request){try{
  const user=await authenticatedUser(req);if(!user)return json({error:'Sign in to continue.'},401);
  const owner=managerUid(),all=firestore().collection('stores');
  const snapshots=user.uid===owner?[await all.get()]:await Promise.all([all.where('managerUid','==',user.uid).get(),all.where('kioskUid','==',user.uid).get()]);
+ const employeeClaim=await firestore().doc('storeAccounts/'+user.uid).get();
+ const assigned=employeeClaim.data()?.role==='employee'?Object.keys(employeeClaim.data()?.stores??{}):[];
+ const employeeDocs=await Promise.all(assigned.filter(validStoreId).map(id=>all.doc(id).get()));
  const docs=new Map(snapshots.flatMap(s=>s.docs).map(d=>[d.id,d.data()]));
+ for(const d of employeeDocs)if(d.exists)docs.set(d.id,d.data()!);
  if(user.uid===owner&&!docs.has('main'))docs.set('main',{});
- const stores=[...docs].flatMap(([id,data])=>{const meta=storeMeta(id,data,owner),role=storeRole(user.uid,meta,owner);return role?[{id,name:meta.name,role,...(user.uid===owner?{managerEmail:meta.managerEmail,managerUid:meta.managerUid}:{})}]:[];}).sort((a,b)=>a.name.localeCompare(b.name));
+ const stores=[...docs].flatMap(([id,data])=>{const meta=storeMeta(id,data,owner),role=storeRole(user.uid,meta,owner)??(assigned.includes(id)?'employee':null);return role?[{id,name:meta.name,role,...(user.uid===owner?{managerEmail:meta.managerEmail,managerUid:meta.managerUid}:{})}]:[];}).sort((a,b)=>a.name.localeCompare(b.name));
  return json({owner:user.uid===owner,stores});
  }catch(e){console.error('Store listing failed',e instanceof Error?e.message:'Unknown');return json({error:'Could not load store access. Try again.'},503);}}
 export async function POST(req:Request){try{
@@ -33,7 +37,7 @@ export async function POST(req:Request){try{
   if(p.action==='assign_manager'&&!doc.exists&&id!=='main')throw Error('Store not found.');
   const kiosks=await tx.get(firestore().collection('stores').where('kioskUid','==',account.uid));
   const accountRef=firestore().doc('storeAccounts/'+account.uid),claim=await tx.get(accountRef);
-  if(!kiosks.empty||claim.data()?.role==='kiosk')throw Error('Use a separate manager account; this account is a store tablet.');
+  if(!kiosks.empty||['kiosk','employee'].includes(claim.data()?.role))throw Error('Use a separate manager account; this account is a tablet or employee.');
   const before=doc.data()??{};
   tx.set(ref,{...(settings??{}),managerUid:account.uid,managerEmail:email,revision:(before.revision??0)+1},{merge:true});
   tx.set(accountRef,{role:'manager'});

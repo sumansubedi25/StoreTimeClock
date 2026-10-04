@@ -4,7 +4,7 @@ import {apiFetch} from '../lib/firebase-client';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {LocationFields,emptyDraft,settingsBody} from './store-settings';
-export type StoreChoice={id:string;name:string;role:'manager'|'kiosk';managerEmail?:string;managerUid?:string};
+export type StoreChoice={id:string;name:string;role:'manager'|'kiosk'|'employee';managerEmail?:string;managerUid?:string};
 export default function StoreAdmin({stores,onSaved}:{stores:StoreChoice[];onSaved:()=>Promise<void>}){
  const [draft,setDraft]=useState(emptyDraft),[email,setEmail]=useState(''),[target,setTarget]=useState(''),[replacement,setReplacement]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  async function save(body:any){setBusy(true);setError('');setMessage('');try{const r=await apiFetch('/api/stores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d:any=await r.json();if(!r.ok)throw Error(d.error);await onSaved();setMessage(body.action==='create'?'Store created. Its assigned manager can now sign in and set up employees.':'Manager assignment updated. The previous manager loses access unless assigned to this store again.');if(body.action==='create'){setDraft(emptyDraft);setEmail('');}}catch(e:any){setError(e.message);}finally{setBusy(false);}}
