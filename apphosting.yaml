@@ -1,0 +1,9 @@
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 20
+env:
+  - variable: MANAGER_UID
+    value: REPLACE_WITH_MANAGER_UID
+    availability:
+      - RUNTIME
