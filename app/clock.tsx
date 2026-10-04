@@ -17,7 +17,7 @@ import {Select,SelectTrigger,SelectValue,SelectContent,SelectItem} from '@/compo
 import {Table,TableHeader,TableBody,TableRow,TableHead,TableCell} from '@/components/ui/table';
 type Employee={id:string;name:string;start:number|null};
 type Shift={id:string;name:string;employee:string;start:number;end:number|null};
-const fmt=(n:number)=>new Date(n).toLocaleString('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+const fmt=(n:number)=>new Date(n).toLocaleString('en-US',{timeZone:'America/Chicago',weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 const duration=(n:number)=>`${(Math.max(0,n)/3600000).toFixed(2)} hrs`;
 export default function Clock({kiosk=false}:{kiosk?:boolean}){const apiFetch=useStoreApi();const [data,setData]=useState<{setup:boolean;store:{id:string;name:string;location:StoreLocation|null;geofenceEnabled:boolean};employees:Employee[]}|null>(null),[selected,setSelected]=useState(''),[pin,setPin]=useState(''),[adminPin,setAdminPin]=useState(''),[admin,setAdmin]=useState(false),[manager,setManager]=useState(false),[name,setName]=useState(''),[employeePin,setEmployeePin]=useState(''),[shifts,setShifts]=useState<Shift[]>([]),[audit,setAudit]=useState<any[]>([]),[message,setMessage]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[now,setNow]=useState<number|null>(null);
 async function load(){const r=await apiFetch('/api/clock',{cache:'no-store'});const d:any=await r.json();if(!r.ok)throw Error(d.error);setData(d);}
