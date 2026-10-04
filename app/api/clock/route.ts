@@ -1,3 +1,4 @@
+import {employeeBinding,checkOtherStores} from '../../../lib/employee-access';
 import {firestore,adminAuth,authenticatedUser,managerUid} from '../../../lib/firebase-admin';
 import {readState,snapshot,persist,root,createBackup,listBackups,getBackup,restorePayload} from '../../../lib/firebase-store';
 import type {State} from '../../../lib/firebase-store';
@@ -30,8 +31,10 @@ export async function POST(req:Request){try{
  }
  const result=await firestore().runTransaction(async tx=>{
   const before=await readState(tx,storeId),access=role(user,before);
-  if(!access)fail('This account is not authorized for this store.',403);
-  if(!allowedAction(access,p.action))fail('This store account can only clock employees in and out.',403);
+  const personal=access?null:await employeeBinding(tx,user.uid,storeId,before);
+  if(!access&&!personal)fail('This account is not authorized for this store.',403);
+  if(personal){if(!['in','out'].includes(p.action))fail('Employee access only allows personal punches.',403);if(p.employee&&p.employee!==personal)fail('You can only clock yourself in or out.',403);p.employee=personal;}
+  if(!personal&&!allowedAction(access,p.action))fail('This store account can only clock employees in and out.',403);
   // Tablet identities cannot be managers or assigned to another store.
   let tabletClaim:null|ReturnType<ReturnType<typeof firestore>['doc']>=null;
   let previousClaim:null|ReturnType<ReturnType<typeof firestore>['doc']>=null;
@@ -43,12 +46,12 @@ export async function POST(req:Request){try{
    const managers=await tx.get(firestore().collection('stores').where('managerUid','==',p.kioskUid));
    const tablets=await tx.get(firestore().collection('stores').where('kioskUid','==',p.kioskUid));
    const ref=firestore().doc('storeAccounts/'+p.kioskUid),claim=await tx.get(ref);
-   if(p.kioskUid===before.managerUid||!managers.empty||tablets.docs.some(d=>d.id!==storeId)||claim.data()?.role==='manager'||(claim.exists&&claim.data()?.storeId!==storeId))fail('Use a separate tablet account that is not assigned to another store or manager.');
+   if(p.kioskUid===before.managerUid||!managers.empty||tablets.docs.some(d=>d.id!==storeId)||['manager','employee'].includes(claim.data()?.role)||(claim.exists&&claim.data()?.storeId!==storeId))fail('Use a separate tablet account that is not assigned to another store or manager.');
    tabletClaim=ref;
   }
   const employee=before.employees.find(e=>e.id===p.employee);
   const isPunch=['in','out'].includes(p.action);
-  const requiresPin=p.action!=='setup'&&!(p.action==='backup_import'&&!before.hash);
+  const requiresPin=!personal&&p.action!=='setup'&&!(p.action==='backup_import'&&!before.hash);
   // Separate lockout counters stop one employee from locking out the manager.
   const gateRef=root(storeId).collection('attempts').doc(isPunch&&employee?'employee-'+employee.id:'manager');
   const gateDoc=requiresPin?await tx.get(gateRef):null;const gate=gateDoc?.data();const now=Date.now();
@@ -58,6 +61,8 @@ export async function POST(req:Request){try{
    if(gate&&gate.count>=5&&gate.until>now)return {error:'Too many incorrect PINs. Try again in 5 minutes.',status:429};
    if(!verifyPin(p.pin,isPunch?employee!.hash:before.hash)){tx.set(gateRef,{count:gate&&gate.until>now?gate.count+1:1,until:now+300000});return {error:'Incorrect PIN.',status:403};}
   }
+  if(p.action==='in')await checkOtherStores(tx,before,p.employee,'in',now,null);
+  if(p.action==='save_shift')await checkOtherStores(tx,before,p.employee,'save_shift',p.start,p.end);
   const after=structuredClone(before);
   let data:any={ok:true};
   if(!p.action.startsWith('backup_'))try{data=applyAction(after,p,now);}catch(e){if(e instanceof ClockError)throw e;fail(e instanceof Error?e.message:'Invalid request.');}
