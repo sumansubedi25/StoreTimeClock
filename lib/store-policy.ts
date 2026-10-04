@@ -19,4 +19,17 @@ export function storeSettings(value:any):{name:string;location:StoreLocation;geo
  if(value.geofenceEnabled!==undefined&&typeof value.geofenceEnabled!=='boolean')throw Error('Choose whether location locking is enabled.');
  return {name,location:{address,latitude:location.latitude,longitude:location.longitude,radiusMeters:location.radiusMeters},geofenceEnabled:value.geofenceEnabled!==false};
 }
-export function sameOrigin(request:Request){try{const origin=new URL(request.headers.get('origin')??'');return ['http:','https:'].includes(origin.protocol)&&origin.host===request.headers.get('host');}catch{return false;}}
+export function sameOrigin(request: Request) {
+  try {
+    const origin = new URL(request.headers.get('origin') ?? '');
+
+    if (origin.origin === 'https://webbchapel--store-timeclock.us-east4.hosted.app') {
+      return true;
+    }
+
+    return ['http:', 'https:'].includes(origin.protocol)
+      && origin.host === request.headers.get('host');
+  } catch {
+    return false;
+  }
+}
