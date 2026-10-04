@@ -1,6 +1,6 @@
 # Store Time Clock — Firebase migration
 
-This Firebase version is not yet deployed and contains no live employee data. The old app is still the live system.
+Firebase App Hosting serves this app at https://webbchapel--store-timeclock.us-east4.hosted.app. Import and verify existing records before switching employee punches to the Firebase version.
 
 ## Included
 
@@ -101,6 +101,15 @@ Local development targets the REAL Firebase project unless both client and serve
 
 ## Verification and rollback
 
-Production build and 26 tests passed, including manager/tablet authorization, forged store IDs, cross-store writes and backup downloads, account reassignment, store-specific boundaries, and the geolocking switch. Route tests use verified mock identities and an in-memory database; live Firebase permissions, concurrent transactions, import/restore and tablet GPS still require testing. Before inviting managers, verify with two real manager accounts that each cannot access the other's store.
+Production build and 31 tests passed, including manager/tablet authorization, forged store IDs, cross-store writes and backup downloads, account reassignment, store-specific boundaries, and the geolocking switch. Route tests use verified mock identities and an in-memory database; live Firebase permissions, concurrent transactions, import/restore and tablet GPS still require testing. Before inviting managers, verify with two real manager accounts that each cannot access the other's store.
 
 Keep the original export and old app. Before any new punches, rollback simply means resuming the old app. After new Firebase punches, export and reconcile those records BEFORE switching back to avoid losing hours.
+
+
+## Employee email login and updates
+
+Create each employee's Email/Password user in Firebase Authentication. In the selected store, open Manager, unlock with the manager PIN, and use Employee email access to link that email to an existing employee record. Repeat at the second store using the SAME Firebase email and that store's employee record. No public self-registration or manager-created passwords are provided. Employee accounts must be separate from manager, owner and tablet accounts. Employees clock themselves in/out without a PIN and see their own shift history, decimal completed hours, and estimated gross pay for Central Time semimonthly periods. Per-store salary calculations remain unchanged; dashboard totals sum the existing store amounts. Pay remains an estimate before deductions, without automatic overtime calculation.
+
+Cross-store overlapping punches and manual shifts are blocked for linked employees, including punches made using the tablet PIN. Firestore transactions read the other assigned stores so concurrent mutations retry before committing conflicting shifts. Existing unlinked employee records cannot be recognized as the same person across stores. Assign accounts while employees are clocked out. Removing an email assignment removes access only at that store. Employee account assignments are access configuration stored outside backup generations; JSON shift backups/restores leave assignments unchanged. Recheck assignments after restoring a backup with different employee IDs. PIN access remains available.
+
+Merge changes into the App Hosting deployment branch (`main`). Firebase rolls out the web update; installed PWA and Bubblewrap APK users get current pages when reopening/reloading while online. The service worker does not cache authenticated pages or API data. No APK rebuild or reinstall is needed for web UI/business-logic changes. An already-open screen may remain on its old version until refreshed. Changes to the Android package, signing key, permissions, icons or wrapper configuration require a new signed APK using the same keystore (or managed store distribution); website deployment does not update the Android binary.
