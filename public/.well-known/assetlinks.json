@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.hosted.us_east4.webbchapel__store_timeclock.twa",
+        "sha256_cert_fingerprints": ["17:15:82:8B:DA:34:82:EB:11:77:2F:5E:87:0A:54:05:59:87:8A:8E:45:82:23:DB:37:88:4E:1E:8B:0E:CB:3F"]
+      }
+    }]
