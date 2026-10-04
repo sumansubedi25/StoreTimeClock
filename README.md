@@ -8,7 +8,7 @@ Firebase email/password login; multiple businesses/stores with separate managers
 
 Pay periods are 1st–15th and 16th–month-end in America/Chicago. Salary rate means the amount PER PAY PERIOD. No taxes, overtime, benefits, or actual payroll payments are calculated. Review totals before paying employees.
 
-Geolocking starts enabled. When enabled, clock-in requires a fresh GPS reading inside that store's configured boundary; clock-out does not require GPS. The original Webb Chapel store retains its 300-foot boundary. Each store manager can toggle geolocking in Manager → Store name and location → Save store settings. Turning it off allows clock-in without GPS; PINs and Firebase authorization remain required. Changes are audited. Employee GPS readings are not saved. Browser GPS can be spoofed and location accuracy must be tested on your tablet. A web app cannot enforce Android kiosk locking.
+Geolocking starts enabled. When enabled, clock-in and clock-out require a fresh, accurate GPS reading inside that store's configured boundary. The original Webb Chapel store retains its 300-foot boundary. Each store manager can toggle geolocking in Manager → Store name and location → Save store settings. Turning it off allows clock-in and clock-out without GPS; PINs and Firebase authorization remain required. Changes are audited. Employee GPS readings are not saved. Browser GPS can be spoofed and location accuracy must be tested on your tablet. A web app cannot enforce Android kiosk locking.
 
 ## 1. Preserve old data
 
@@ -101,7 +101,7 @@ Local development targets the REAL Firebase project unless both client and serve
 
 ## Verification and rollback
 
-Production build and 31 tests passed, including manager/tablet authorization, forged store IDs, cross-store writes and backup downloads, account reassignment, store-specific boundaries, and the geolocking switch. Route tests use verified mock identities and an in-memory database; live Firebase permissions, concurrent transactions, import/restore and tablet GPS still require testing. Before inviting managers, verify with two real manager accounts that each cannot access the other's store.
+Production build and 32 tests passed, including manager/tablet authorization, forged store IDs, cross-store writes and backup downloads, account reassignment, store-specific boundaries, and the geolocking switch. Route tests use verified mock identities and an in-memory database; live Firebase permissions, concurrent transactions, import/restore and tablet GPS still require testing. Before inviting managers, verify with two real manager accounts that each cannot access the other's store.
 
 Keep the original export and old app. Before any new punches, rollback simply means resuming the old app. After new Firebase punches, export and reconcile those records BEFORE switching back to avoid losing hours.
 
