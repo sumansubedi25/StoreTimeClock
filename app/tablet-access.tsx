@@ -1,9 +1,10 @@
 "use client";
 import {useEffect,useState} from 'react';
-import {apiFetch} from '../lib/firebase-client';
+import {useStoreApi} from './store-context';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 export default function TabletAccess({pin}:{pin:string}){
+ const apiFetch=useStoreApi();
  const [email,setEmail]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  async function call(body:any){const r=await apiFetch('/api/clock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,pin})});const d:any=await r.json();if(!r.ok)throw Error(d.error);return d;}
  useEffect(()=>{call({action:'get_kiosk'}).then(d=>setEmail(d.email)).catch(e=>setError(e.message));},[pin]);

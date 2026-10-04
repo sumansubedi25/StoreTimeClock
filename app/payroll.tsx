@@ -1,5 +1,5 @@
 'use client';
-import {apiFetch} from '../lib/firebase-client';
+import {useStoreApi} from './store-context';
 import {useEffect,useState} from 'react';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
@@ -11,6 +11,7 @@ type Report={period:{startDate:string;endDate:string};rows:Row[];totalCents:numb
 const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
 function today(){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const d=Object.fromEntries(parts.map(p=>[p.type,p.value]));return {month:`${d.year}-${d.month}`,half:Number(d.day)<=15?'01':'16'};}
 export default function Payroll({pin,revision,onSaved}:{pin:string;revision:unknown;onSaved:()=>Promise<void>}){
+ const apiFetch=useStoreApi();
 const [initial]=useState(today),[month,setMonth]=useState(initial.month),[half,setHalf]=useState(initial.half),[report,setReport]=useState<Report|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState<Row|null>(null),[type,setType]=useState('hourly'),[rate,setRate]=useState(''),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[formError,setFormError]=useState('');
 const period=`${month}-${half}`;
 async function call(body:any,signal?:AbortSignal){const r=await apiFetch('/api/clock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,pin}),signal});const d:any=await r.json();if(!r.ok)throw Error(d.error);return d;}

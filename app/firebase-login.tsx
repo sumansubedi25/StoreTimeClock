@@ -1,14 +1,28 @@
 "use client";
-import {useEffect,useState} from 'react';
+import {useEffect,useState,useCallback} from 'react';
 import {onAuthStateChanged,signInWithEmailAndPassword,signOut,type User} from 'firebase/auth';
 import {firebaseAuth,apiFetch} from '../lib/firebase-client';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import Clock from './clock';
+import {StoreProvider} from './store-context';
+import StoreAdmin,{type StoreChoice} from './store-admin';
 export default function FirebaseLogin(){
- const [user,setUser]=useState<User|null>(null),[ready,setReady]=useState(false),[role,setRole]=useState<string|null>(null),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
- useEffect(()=>onAuthStateChanged(firebaseAuth(),u=>{setUser(u);setReady(true);setRole(null);setError('');if(u)apiFetch('/api/clock').then(async r=>{const d:any=await r.json();if(!r.ok)throw Error(d.error);setRole(d.kiosk?'kiosk':'manager');}).catch(e=>setError(e.message));}),[]);
+ const [user,setUser]=useState<User|null>(null),[ready,setReady]=useState(false),[stores,setStores]=useState<StoreChoice[]>([]),[storeId,setStoreId]=useState(''),[owner,setOwner]=useState(false),[manage,setManage]=useState(false),[checked,setChecked]=useState(false),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ const refresh=useCallback(async()=>{
+  const expected=firebaseAuth().currentUser?.uid;
+  const r=await apiFetch('/api/stores'),d:any=await r.json();
+  if(!r.ok)throw Error(d.error);
+  if(expected!==firebaseAuth().currentUser?.uid)return;
+  setStores(d.stores);setOwner(d.owner);setChecked(true);
+  setStoreId(current=>d.stores.some((s:StoreChoice)=>s.id===current)?current:(d.stores[0]?.id??''));
+ },[]);
+ useEffect(()=>onAuthStateChanged(firebaseAuth(),u=>{
+  setUser(u);setReady(true);setStores([]);setStoreId('');setOwner(false);setManage(false);setChecked(false);setError('');
+  if(u)refresh().catch(e=>{if(firebaseAuth().currentUser?.uid===u.uid){setError(e.message);setChecked(true);}});
+ }),[refresh]);
+ const current=stores.find(s=>s.id===storeId);
  async function login(){setBusy(true);setError('');try{await signInWithEmailAndPassword(firebaseAuth(),email.trim(),password);setPassword('');}catch{setError('Unable to sign in. Check your app email and password.');}finally{setBusy(false);}}
  if(!ready)return <main><section className="panel">Loading…</section></main>;
- return <>{user?<><div className="session-bar"><span>{role==='kiosk'?'Store tablet':'Manager'} · {user.email}</span><Button variant="outline" onClick={()=>signOut(firebaseAuth())}>Sign out</Button></div>{role?<Clock key={user.uid} kiosk={role==='kiosk'}/>:<main><section className="panel"><p role="alert">{error||'Checking store access…'}</p></section></main>}</>:<main><section className="panel setup"><h1>Store Time Clock</h1><p>Sign in with your manager or store tablet account.</p>{error&&<p className="notice error" role="alert">{error}</p>}<form onSubmit={e=>{e.preventDefault();login();}}><label htmlFor="login-email">Email</label><Input id="login-email" type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/><label htmlFor="login-password">App password</label><Input id="login-password" type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/><Button type="submit" disabled={busy}>{busy?'Signing in…':'Sign in'}</Button></form></section></main>}</>;
+ return <>{user?<><div className="session-bar"><span>{owner?'Owner':current?.role==='kiosk'?'Store tablet':'Manager'} · {user.email}</span>{stores.length>1&&<><label htmlFor="active-store">Store</label><select id="active-store" value={storeId} onChange={e=>{setStoreId(e.target.value);setManage(false);}}>{stores.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></>}{stores.length===1&&<b>{stores[0].name}</b>}{owner&&<Button variant="outline" onClick={()=>setManage(!manage)}>{manage?'Back to clock':'Manage stores'}</Button>}<Button variant="outline" onClick={()=>signOut(firebaseAuth())}>Sign out</Button></div>{error&&<main><p className="notice error" role="alert">{error}</p><Button onClick={()=>{setError('');refresh().catch(e=>setError(e.message));}}>Retry access</Button></main>}{manage&&owner?<StoreAdmin stores={stores} onSaved={refresh}/>:current?<StoreProvider key={user.uid+':'+current.id} id={current.id}><Clock kiosk={current.role==='kiosk'}/></StoreProvider>:<main><section className="panel"><p>{checked?'No store is assigned to this account. Ask the owner to assign your manager email or your manager to enable your tablet email.':'Checking store access…'}</p></section></main>}</>:<main><section className="panel setup"><h1>Store Time Clock</h1><p>Sign in with your manager or store tablet account.</p>{error&&<p className="notice error" role="alert">{error}</p>}<form onSubmit={e=>{e.preventDefault();login();}}><label htmlFor="login-email">Email</label><Input id="login-email" type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/><label htmlFor="login-password">App password</label><Input id="login-password" type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/><Button type="submit" disabled={busy}>{busy?'Signing in…':'Sign in'}</Button></form></section></main>}</>;
 }

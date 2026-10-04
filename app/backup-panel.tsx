@@ -1,5 +1,5 @@
 "use client";
-import {apiFetch} from '../lib/firebase-client';
+import {useStoreApi} from './store-context';
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import ImportBackup from './import-backup';
 type Backup = { key: string; uploaded: string; size: number };
 
 export default function BackupPanel({ pin }: { pin: string }) {
+ const apiFetch=useStoreApi();
   const [backups, setBackups] = useState<Backup[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
