@@ -4,11 +4,11 @@ This Firebase version is not yet deployed and contains no live employee data. Th
 
 ## Included
 
-Firebase email/password login; separate manager and tablet roles; employee PIN punches; decimal hours; manual shift edits with audit records; twice-monthly hourly/salary gross-pay estimates; JSON backups and imports; installable web-app assets.
+Firebase email/password login; multiple businesses/stores with separate managers and tablet accounts; employee PIN punches; decimal hours; manual shift edits with audit records; twice-monthly hourly/salary gross-pay estimates; per-store JSON backups and imports; installable web-app assets.
 
 Pay periods are 1st–15th and 16th–month-end in America/Chicago. Salary rate means the amount PER PAY PERIOD. No taxes, overtime, benefits, or actual payroll payments are calculated. Review totals before paying employees.
 
-Clock-in requires a fresh GPS reading within 300 feet of 9625 Webb Chapel Rd Suite 100A, Dallas. Clock-out does not require GPS. Coordinates are not saved. Browser GPS can be spoofed and location accuracy must be tested on your tablet. A web app cannot enforce Android kiosk locking.
+Geolocking starts enabled. When enabled, clock-in requires a fresh GPS reading inside that store's configured boundary; clock-out does not require GPS. The original Webb Chapel store retains its 300-foot boundary. Each store manager can toggle geolocking in Manager → Store name and location → Save store settings. Turning it off allows clock-in without GPS; PINs and Firebase authorization remain required. Changes are audited. Employee GPS readings are not saved. Browser GPS can be spoofed and location accuracy must be tested on your tablet. A web app cannot enforce Android kiosk locking.
 
 ## 1. Preserve old data
 
@@ -22,7 +22,7 @@ Project: `store-timeclock`. Public web configuration is already included in `lib
 
 1. Authentication → Sign-in method → enable Email/Password.
 2. Authentication → Users → create manager and SEPARATE store tablet accounts. Employees only need PINs, not Firebase or ChatGPT accounts.
-3. Click the manager user, copy its UID, and replace `REPLACE_WITH_MANAGER_UID` in `apphosting.yaml`. Only this UID gets manager access. Do not share passwords or service-account keys.
+3. Your supplied UID `CRWIoygqx9fYs2RJlQsBhLiCUT12` is configured in `apphosting.yaml` and `.env.example` as the OWNER. Confirm it matches your owner account in Authentication → Users. This account can create stores, assign managers, and access all stores. Other managers get access only to stores assigned to their exact UID. Do not share passwords or service-account keys.
 4. Create Firestore in Native mode with database ID `(default)`.
 5. Review Blaze pay-as-you-go billing before enabling App Hosting. Set billing alerts; these are NOT spending caps.
 
@@ -40,9 +40,11 @@ npx firebase-tools deploy --only firestore:rules --project store-timeclock
 
 The rules deliberately deny ALL direct browser database access. The server checks Firebase ID tokens and roles. Do not replace them with an allow-all-signed-in-users rule.
 
-Create ONE private GitHub repository. Upload project files at the repository root, including `.firebaserc`, `.gitignore`, and `.env.example`. Do not upload node_modules, .next, .env.local, or credentials.
+GitHub is optional. For your existing `sumansubedi25/StoreTimeClock` repository, upload the updated project files at the repository root, including `.firebaserc`, `.gitignore`, and `.env.example`. Do not upload node_modules, .next, .env.local, or credentials. Keep one repository and one Firebase project for all stores; separate repositories and containers are unnecessary.
 
 Firebase Console → App Hosting (not static Hosting) → create a backend → connect the repository → select your live branch and root folder → deploy. No manually managed container is needed. This is a dynamic Next.js app, not a static HTML export.
+
+Alternatively, App Hosting supports a source ZIP upload from the console, or local CLI deployment with `npx firebase-tools init apphosting` followed by `npx firebase-tools deploy --only apphosting,firestore:rules --project store-timeclock`. During initialization keep the existing apphosting.yaml owner UID and select the project explicitly.
 
 App Hosting supplies server Application Default Credentials. If runtime logs report permissions errors, check the backend runtime service account's IAM permissions for Firestore read/write and Firebase Authentication user/token access. Grant only the missing permissions to that service account, never the public or employees.
 
@@ -54,7 +56,7 @@ Official guides:
 
 ## 4. Import, test, and switch
 
-Sign into the NEW HTTPS URL using the manager Firebase account. On the setup screen choose Import an existing backup and select the old JSON backup. Employees, hashed PINs, shifts, rates, audit records, and manager PIN are restored. Firebase account authorization remains unchanged. Import into an initialized store requires its current manager PIN and replaces business records.
+Sign into the NEW HTTPS URL using the owner Firebase account. Select Webb Chapel store (ID `main`). On the setup screen choose Import an existing backup and select the old JSON backup. Employees, hashed PINs, shifts, rates, audit records, and manager PIN are restored. Store assignments, tablet access, location and geolocking remain unchanged. Import into an initialized store requires its current manager PIN and replaces that store's business records only. Backups tagged with another store ID are rejected; untagged legacy backups can be imported deliberately.
 
 Check employee counts, open/closed shifts, recent hours/pay totals, and audit history against the original app. If validation fails, keep the original data intact and investigate.
 
@@ -64,14 +66,26 @@ Test wrong PINs, location clock-in, clock-out, manual manager edits, and backup 
 
 Android Chrome on the new HTTPS URL → Install app/Add to Home screen if offered. Internet is required for punches. Strong kiosk security requires a managed Android dedicated-device solution using lock task mode and an owner-only exit password. Ordinary screen pinning is not equivalent. Enrollment may require a factory reset; back up the device first.
 
+## 5. Add businesses/stores and their managers
+
+1. In Firebase Authentication create a separate email/password manager account for each store and a separate tablet account. Do not reuse a manager account on a tablet.
+2. Sign into the app as owner → Manage stores → Add a store. Enter its name, address, latitude/longitude, radius, geolocking choice, and the manager's Firebase email. These coordinates are entered manually; the app does not geocode street addresses or charge for a Maps API. Default radius is 300 feet. Valid radius range is 20–1000 meters.
+3. That manager signs into the same app URL and sees their assigned store. They create a manager PIN, employees, pay rates, and enable their store tablet email.
+4. That tablet account is restricted to its one assigned store's status and employee punches. Payroll, edits, settings, backups and store administration are denied server-side. Employee IDs and PINs can repeat between stores without sharing records.
+5. The owner can change a manager assignment from Manage stores. The previous manager immediately loses server access unless still assigned to that store. Hand the new manager the store's existing PIN separately. Changing a manager never deletes employee history. The owner retains access to all stores.
+
+Existing data stays under `main`; adding a new store starts with empty records. Stores are separate workspaces, not separate Firebase projects. The owner, Firebase project administrators and server service account have access across stores. All stores currently use USD and Central Time payroll periods; no consolidated payroll report or employee-transfer feature is included.
+
 ## Data and backup locations
 
 Firebase Console → Firestore Database → Data:
 
-- `stores/main`: active generation, manager PIN hash, kiosk UID/email and revision.
-- `stores/main/generations/{generation}/employees`, `shifts`, `payRates`, `audit`: business data.
-- `stores/main/backups/{backupId}/chunks`: JSON backup snapshots.
-- `stores/main/attempts`: PIN lockouts (five incorrect attempts, five minutes).
+- `stores/{storeId}`: name, location/geolocking, manager UID/email, active generation, manager PIN hash, kiosk UID/email and revision. Original store ID is `main`; new stores have generated IDs.
+- `stores/{storeId}/generations/{generation}/employees`, `shifts`, `payRates`, `audit`: business data.
+- `stores/{storeId}/backups/{backupId}/chunks`: JSON backup snapshots.
+- `stores/{storeId}/attempts`: PIN lockouts (five incorrect attempts, five minutes).
+- `stores/{storeId}/adminAudit`: owner manager assignments.
+- `storeAccounts/{uid}`: transactional reservations separating manager and tablet identities.
 
 Restores write a complete new generation before switching the pointer; concurrent edits abort that switch. Old generations remain for recovery.
 
@@ -87,6 +101,6 @@ Local development targets the REAL Firebase project unless both client and serve
 
 ## Verification and rollback
 
-Production build and 11 business-logic/import tests passed. Live Firebase permissions, import/restore and tablet GPS still require testing.
+Production build and 26 tests passed, including manager/tablet authorization, forged store IDs, cross-store writes and backup downloads, account reassignment, store-specific boundaries, and the geolocking switch. Route tests use verified mock identities and an in-memory database; live Firebase permissions, concurrent transactions, import/restore and tablet GPS still require testing. Before inviting managers, verify with two real manager accounts that each cannot access the other's store.
 
 Keep the original export and old app. Before any new punches, rollback simply means resuming the old app. After new Firebase punches, export and reconcile those records BEFORE switching back to avoid losing hours.

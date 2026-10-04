@@ -1,30 +1,32 @@
-import {firestore} from './firebase-admin';
+import {firestore,managerUid} from './firebase-admin';
 import type {Transaction} from 'firebase-admin/firestore';
 import {payPeriod} from './payroll';
+import {storeMeta,type StoreMeta} from './store-policy';
 export const TABLES=['employees','shifts','payRates','audit'] as const;
 export type Row=Record<string,any>;
-export type State={hash:string|null;kioskEmail:string;kioskUid:string;revision:number;generation:string;employees:Row[];shifts:Row[];payRates:Row[];audit:Row[]};
-export function root(){return firestore().doc('stores/main');}
-export function generationCollection(generation:string,table:string){return root().collection('generations').doc(generation).collection(table);}
-export async function readState(tx:Transaction):Promise<State>{
- const doc=await tx.get(root()),meta=doc.data()??{};
+export type State=StoreMeta&{storeId:string;hash:string|null;revision:number;generation:string;employees:Row[];shifts:Row[];payRates:Row[];audit:Row[]};
+export function root(storeId:string){return firestore().doc('stores/'+storeId);}
+export function generationCollection(storeId:string,generation:string,table:string){return root(storeId).collection('generations').doc(generation).collection(table);}
+export async function readState(tx:Transaction,storeId:string):Promise<State>{
+ const doc=await tx.get(root(storeId)),meta=doc.data()??{};
+ if(!doc.exists&&storeId!=='main')throw Error('Store not found.');
  const generation=meta.generation??'initial';
- const snapshots=await Promise.all(TABLES.map(t=>tx.get(generationCollection(generation,t))));
+ const snapshots=await Promise.all(TABLES.map(t=>tx.get(generationCollection(storeId,generation,t))));
  const tables=Object.fromEntries(TABLES.map((t,i)=>[t,snapshots[i].docs.map(d=>({...d.data(),id:d.id}))]));
- return {hash:meta.hash??null,kioskEmail:meta.kioskEmail??'',kioskUid:meta.kioskUid??'',revision:meta.revision??0,generation,...tables} as State;
+ return {...storeMeta(storeId,meta,managerUid()),storeId,hash:meta.hash??null,revision:meta.revision??0,generation,...tables} as State;
 }
-export async function snapshot(){return firestore().runTransaction(tx=>readState(tx),{readOnly:true});}
+export async function snapshot(storeId:string){return firestore().runTransaction(tx=>readState(tx,storeId),{readOnly:true});}
 export function persist(tx:Transaction,before:State,after:State){
  for(const table of TABLES){
   const old=new Map(before[table].map(r=>[r.id,JSON.stringify(r)]));
-  for(const row of after[table]){if(old.get(row.id)!==JSON.stringify(row))tx.set(generationCollection(before.generation,table).doc(row.id),row);old.delete(row.id);}
-  for(const id of old.keys())tx.delete(generationCollection(before.generation,table).doc(id));
+  for(const row of after[table]){if(old.get(row.id)!==JSON.stringify(row))tx.set(generationCollection(before.storeId,before.generation,table).doc(row.id),row);old.delete(row.id);}
+  for(const id of old.keys())tx.delete(generationCollection(before.storeId,before.generation,table).doc(id));
  }
- tx.set(root(),{hash:after.hash,kioskEmail:after.kioskEmail,kioskUid:after.kioskUid,generation:before.generation,revision:before.revision+1});
+ tx.set(root(before.storeId),{name:after.name,location:after.location,geofenceEnabled:after.geofenceEnabled,hash:after.hash,kioskEmail:after.kioskEmail,kioskUid:after.kioskUid,generation:before.generation,revision:before.revision+1},{merge:true});
 }
-export function backupPayload(state:State){return {format:'store-time-clock-backup',version:1,owner:'firebase-main',createdAt:new Date().toISOString(),tables:{settings:state.hash?[{owner:'firebase-main',hash:state.hash}]:[],employees:state.employees,shifts:state.shifts,payRates:state.payRates,audit:state.audit,kioskAccess:state.kioskEmail?[{owner:'firebase-main',email:state.kioskEmail}]:[]}};}
+export function backupPayload(state:State){return {format:'store-time-clock-backup',version:1,storeId:state.storeId,storeName:state.name,owner:'firebase-'+state.storeId,createdAt:new Date().toISOString(),tables:{settings:state.hash?[{hash:state.hash}]:[],employees:state.employees,shifts:state.shifts,payRates:state.payRates,audit:state.audit,kioskAccess:state.kioskEmail?[{email:state.kioskEmail}]:[]}};}
 export async function createBackup(state:State,kind='manual'){
- const key=crypto.randomUUID(),ref=root().collection('backups').doc(key),body=JSON.stringify(backupPayload(state));
+ const key=crypto.randomUUID(),ref=root(state.storeId).collection('backups').doc(key),body=JSON.stringify(backupPayload(state));
  const writer=firestore().bulkWriter();
  // Separate chunks avoid Firestore's 1 MiB document limit, including Unicode.
  const chunks=body.match(/[\s\S]{1,60000}/g)??[];
@@ -33,15 +35,16 @@ export async function createBackup(state:State,kind='manual'){
  await ref.set({uploaded,size,kind,chunks:chunks.length,complete:true});
  return {key,uploaded,size};
 }
-export async function listBackups(){const q=await root().collection('backups').orderBy('uploaded','desc').limit(100).get();return q.docs.map(d=>({key:d.id,...d.data()}));}
-export async function getBackup(key:string){
+export async function listBackups(storeId:string){const q=await root(storeId).collection('backups').orderBy('uploaded','desc').limit(100).get();return q.docs.map(d=>({key:d.id,...d.data()}));}
+export async function getBackup(storeId:string,key:string){
  if(!/^[\w-]{1,100}$/.test(key))throw Error('Invalid backup.');
- const ref=root().collection('backups').doc(key),meta=await ref.get();if(!meta.data()?.complete)throw Error('Backup not found.');
+ const ref=root(storeId).collection('backups').doc(key),meta=await ref.get();if(!meta.data()?.complete)throw Error('Backup not found.');
  const q=await ref.collection('chunks').orderBy('__name__').get();if(q.size!==meta.data()?.chunks)throw Error('Backup is incomplete.');
  return JSON.parse(q.docs.map(d=>d.data().text).join(''));
 }
-export function validateBackup(payload:any):Pick<State,'hash'|'employees'|'shifts'|'payRates'|'audit'>{
+export function validateBackup(payload:any,storeId?:string):Pick<State,'hash'|'employees'|'shifts'|'payRates'|'audit'>{
  if(payload?.format!=='store-time-clock-backup'||payload.version!==1)throw Error('Unsupported backup format.');
+ if(storeId&&payload.storeId&&payload.storeId!==storeId)throw Error('This backup belongs to a different store.');
  const t=payload.tables;if(!t||!TABLES.every(k=>Array.isArray(t[k])))throw Error('Incomplete backup.');
  const hash=t.settings?.[0]?.hash??null;
  const validHash=(h:any)=>typeof h==='string'&&/^[\w-]+:[a-f0-9]{64}$/.test(h);
@@ -59,10 +62,10 @@ export function validateBackup(payload:any):Pick<State,'hash'|'employees'|'shift
  return {hash,employees:t.employees.map((e:Row)=>({id:e.id,name:e.name,hash:e.hash})),shifts:t.shifts.map((s:Row)=>({id:s.id,employee:s.employee,start:s.start,end:s.end})),payRates:t.payRates.map((r:Row)=>({id:r.id,employee:r.employee,effective:r.effective,type:r.type,cents:r.cents})),audit:t.audit.map((a:Row)=>({id:a.id,at:a.at,action:a.action,employee:a.employee,reason:a.reason,before:a.before??null,after:a.after??null}))};
 }
 export async function restorePayload(payload:any,expected:State){
- const data=validateBackup(payload),generation=crypto.randomUUID(),writer=firestore().bulkWriter();
- const writes=TABLES.flatMap(table=>data[table].map(row=>writer.set(generationCollection(generation,table).doc(row.id),row)));
+ const data=validateBackup(payload,expected.storeId),generation=crypto.randomUUID(),writer=firestore().bulkWriter();
+ const writes=TABLES.flatMap(table=>data[table].map(row=>writer.set(generationCollection(expected.storeId,generation,table).doc(row.id),row)));
  await Promise.all([...writes,writer.close()]);
  // Switch only after the entire replacement exists. Concurrent edits abort restore.
- await firestore().runTransaction(async tx=>{const latest=await tx.get(root());if((latest.data()?.revision??0)!==expected.revision)throw Error('Store data changed during restore. Refresh and try again.');tx.set(root(),{hash:data.hash,kioskEmail:expected.kioskEmail,kioskUid:expected.kioskUid,generation,revision:expected.revision+1});});
+ await firestore().runTransaction(async tx=>{const latest=await tx.get(root(expected.storeId));if((latest.data()?.revision??0)!==expected.revision)throw Error('Store data changed during restore. Refresh and try again.');tx.set(root(expected.storeId),{hash:data.hash,generation,revision:expected.revision+1},{merge:true});});
  return {restoredAt:new Date().toISOString()};
 }

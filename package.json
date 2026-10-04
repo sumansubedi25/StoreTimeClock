@@ -11,7 +11,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "test": "node --test tests/firebase-clock.test.cjs",
+    "test": "node --test tests/*.test.cjs",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

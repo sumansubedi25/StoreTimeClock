@@ -1,0 +1,47 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const ts=require('typescript');
+let database;
+const accounts=new Map([['manager-a@example.com',{uid:'manager-a'}],['manager-b@example.com',{uid:'manager-b'}],['tablet-a@example.com',{uid:'tablet-a'}]]);
+// Route tests use already-verified identities and a transaction-capable memory
+// database. No real Firebase tokens, keys, or live store records are used.
+const admin={managerUid:()=> 'owner',firestore:()=>database,adminAuth:()=>({getUserByEmail:async email=>{if(!accounts.has(email))throw Error('Missing account');return accounts.get(email);}}),authenticatedUser:async req=>{const token=req.headers.get('Authorization');return token?.startsWith('Bearer ')?{uid:token.slice(7)}:null;}};
+const cache=new Map();
+function load(file){const full=path.resolve(__dirname,'..',file);if(cache.has(full))return cache.get(full);const output=ts.transpileModule(fs.readFileSync(full,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const module={exports:{}};cache.set(full,module.exports);new Function('require','module','exports',output)(id=>{if(id.endsWith('/firebase-admin')||id==='./firebase-admin')return admin;return id.startsWith('.')?load(path.relative(path.resolve(__dirname,'..'),path.resolve(path.dirname(full),id+'.ts'))):require(id);},module,module.exports);cache.set(full,module.exports);return module.exports;}
+function memory(initial){
+ let rows=new Map(initial);
+ const snap=(name)=>({id:name.split('/').pop(),exists:rows.has(name),data:()=>rows.has(name)?structuredClone(rows.get(name)):undefined});
+ function query(name,filters=[],order=null,limit=null){return {name,filters,order,limitCount:limit,isQuery:true,doc:id=>ref(name+'/'+id),where:(key,op,value)=>{assert.equal(op,'==');return query(name,[...filters,[key,value]],order,limit);},orderBy:key=>query(name,filters,key,limit),limit:n=>query(name,filters,order,n),get:async()=>read(query(name,filters,order,limit))};}
+ function ref(name){return {name,collection:key=>query(name+'/'+key),get:async()=>snap(name),set:async(data,options)=>write(ref(name),data,options)};}
+ function read(target){if(!target.isQuery)return snap(target.name);let docs=[...rows.keys()].filter(k=>k.startsWith(target.name+'/')&&k.slice(target.name.length+1).indexOf('/')===-1).map(snap).filter(d=>target.filters.every(([key,value])=>d.data()[key]===value));if(target.order)docs.sort((a,b)=>String(target.order==='__name__'?a.id:a.data()[target.order]).localeCompare(String(target.order==='__name__'?b.id:b.data()[target.order])));if(target.limitCount)docs=docs.slice(0,target.limitCount);return {docs,size:docs.length,empty:docs.length===0};}
+ function write(target,data,options){rows.set(target.name,{...(options?.merge?rows.get(target.name):{}),...structuredClone(data)});}
+ return {doc:ref,collection:query,getRows:()=>rows,runTransaction:async fn=>{const original=rows;rows=new Map(structuredClone([...rows]));try{return await fn({get:async target=>read(target),set:write,delete:target=>rows.delete(target.name)});}catch(e){rows=original;throw e;}},bulkWriter:()=>({set:async(target,data)=>write(target,data),close:async()=>{}})};
+}
+const clock=load('app/api/clock/route.ts');
+const stores=load('app/api/stores/route.ts');
+const {hashPin}=load('lib/firebase-clock.ts');
+const {STORE_LOCATION}=load('lib/geofence.ts');
+const {storeMeta,storeRole}=load('lib/store-policy.ts');
+const managerHash=hashPin('123456'),employeeHash=hashPin('654321');
+function fixture(){database=memory([
+ ['stores/a',{name:'Store A',managerUid:'manager-a',managerEmail:'manager-a@example.com',kioskUid:'tablet-a',kioskEmail:'tablet-a@example.com',hash:managerHash,location:STORE_LOCATION,geofenceEnabled:true,revision:0,generation:'initial'}],
+ ['stores/b',{name:'Store B',managerUid:'manager-b',kioskUid:'tablet-b',kioskEmail:'tablet-b@example.com',hash:managerHash,location:{...STORE_LOCATION,latitude:40,longitude:-80},geofenceEnabled:true,revision:0,generation:'initial'}],
+ ['stores/a/generations/initial/employees/same-id',{id:'same-id',name:'Alice A',hash:employeeHash}],
+ ['stores/b/generations/initial/employees/same-id',{id:'same-id',name:'Bob B',hash:employeeHash}],
+ ['stores/b/backups/other-backup',{complete:true,chunks:1}],
+ ['stores/b/backups/other-backup/chunks/00000000',{text:JSON.stringify({secret:'store-b-payroll'})}]
+]);}
+function req(uid,storeId,body){const headers={Host:'localhost',Origin:'http://localhost','Content-Type':'application/json'};if(uid)headers.Authorization='Bearer '+uid;if(storeId)headers['X-Store-ID']=storeId;return new Request('http://localhost/api/clock',{method:body?'POST':'GET',headers,...(body?{body:JSON.stringify(body)}:{})});}
+test('manager and kiosk store listings exclude other stores',async()=>{fixture();for(const uid of ['manager-a','tablet-a']){const r=await stores.GET(req(uid)),data=await r.json();assert.equal(r.status,200);assert.deepEqual(data.stores.map(s=>s.id),['a']);assert.equal(data.owner,false);}const owner=await (await stores.GET(req('owner'))).json();assert.deepEqual(new Set(owner.stores.map(s=>s.id)),new Set(['main','a','b']));});
+test('manager cannot read another store even when forging its ID',async()=>{fixture();assert.equal((await clock.GET(req('manager-a','b'))).status,403);const data=await (await clock.GET(req('manager-a','a'))).json();assert.equal(data.employees[0].name,'Alice A');assert.equal('hash' in data.employees[0],false);});
+test('tablet cannot read another store or run manager actions',async()=>{fixture();assert.equal((await clock.GET(req('tablet-a','b'))).status,403);for(const action of ['payroll','report','backup_download','set_store','set_kiosk','setup']){const response=await clock.POST(req('tablet-a','a',{action,pin:'123456',key:'other-backup',geofenceEnabled:false}));assert.equal(response.status,403,action);}});
+test('unauthenticated, missing-store and path-traversal requests are rejected',async()=>{fixture();assert.equal((await clock.GET(req(null,'a'))).status,401);assert.equal((await clock.GET(req('manager-a'))).status,400);assert.equal((await clock.GET(req('manager-a','../b'))).status,400);});
+test('manager cannot write another store or create stores',async()=>{fixture();const before=structuredClone([...database.getRows()]);assert.equal((await clock.POST(req('manager-a','b',{action:'add',pin:'123456',name:'Intruder',employeePin:'111111'}))).status,403);assert.equal((await stores.POST(req('manager-a',null,{action:'create',managerEmail:'manager-a@example.com'}))).status,403);assert.deepEqual([...database.getRows()],before);});
+test('backup keys are scoped to their store',async()=>{fixture();const response=await clock.POST(req('manager-a','a',{action:'backup_download',pin:'123456',key:'other-backup'}));assert.notEqual(response.status,200);assert.equal((await response.text()).includes('store-b-payroll'),false);});
+test('geolocking bypass flag is ignored; authorized switch affects only one store',async()=>{fixture();assert.equal((await clock.POST(req('tablet-a','a',{action:'in',employee:'same-id',pin:'654321',geofenceEnabled:false}))).status,403);const updated=await clock.POST(req('manager-a','a',{action:'set_store',pin:'123456',name:'Store A',location:STORE_LOCATION,geofenceEnabled:false}));assert.equal(updated.status,200);assert.equal(database.getRows().get('stores/b').geofenceEnabled,true);assert.equal((await clock.POST(req('tablet-a','a',{action:'in',employee:'same-id',pin:'654321'}))).status,200);assert.equal([...database.getRows().keys()].filter(k=>k.startsWith('stores/b/generations/initial/shifts/')).length,0);});
+test('owner can reassign manager and old manager loses access',async()=>{fixture();assert.equal((await stores.POST(req('owner',null,{action:'assign_manager',storeId:'a',managerEmail:'manager-b@example.com'}))).status,200);assert.equal((await clock.GET(req('manager-a','a'))).status,403);assert.equal((await clock.GET(req('manager-b','a'))).status,200);});
+test('owner can create new store; manager must finish PIN setup',async()=>{fixture();const response=await stores.POST(req('owner',null,{action:'create',managerEmail:'manager-a@example.com',name:'New business',location:STORE_LOCATION,geofenceEnabled:true}));assert.equal(response.status,200);const {id}=await response.json();const status=await (await clock.GET(req('manager-a',id))).json();assert.equal(status.setup,false);assert.deepEqual(status.employees,[]);assert.equal((await clock.GET(req('manager-b',id))).status,403);});
+test('manager cannot reuse another store tablet or a manager account',async()=>{fixture();accounts.set('tablet-b@example.com',{uid:'tablet-b'});for(const email of ['tablet-b@example.com','manager-b@example.com'])assert.equal((await clock.POST(req('manager-a','a',{action:'set_kiosk',pin:'123456',email}))).status,400);assert.equal(database.getRows().get('stores/a').kioskUid,'tablet-a');});
+test('legacy main store remains accessible only to owner until assigned',()=>{const legacy=storeMeta('main',{},'owner');assert.equal(storeRole('owner',legacy,'owner'),'manager');assert.equal(storeRole('manager-a',legacy,'owner'),null);assert.equal(legacy.geofenceEnabled,true);});
