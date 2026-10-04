@@ -46,3 +46,7 @@
  .geo-switch input:checked {background:#087e70;}
  .geo-switch input:checked:before {transform:translateX(20px);}
  .geo-switch input:focus-visible {outline:3px solid #3483ce;outline-offset:3px;}
+
+/* Webb Chapel store branding: decorative, never blocks controls. */
+.store-watermark{position:fixed;inset:0;z-index:10;pointer-events:none;background:url('/logos/1abc-circle.svg') center center / min(72vw,560px) auto no-repeat;opacity:.065;}
+@media(max-width:720px){.store-watermark{background-size:84vw auto;}}
