@@ -54,7 +54,7 @@
 .king-market-watermark{background-image:url('/logos/king-market-2-circle.svg');}
 
 /* Branded sign-in screen with a centered, scroll-safe card. */
-main.login-page{width:100%;max-width:none;min-height:100vh;min-height:100dvh;margin:0;padding:clamp(24px,5vh,48px) 20px;display:grid;grid-template-rows:auto 1fr;gap:24px;}
+main.login-page{background:#e3f2fd;width:100%;max-width:none;min-height:100vh;min-height:100dvh;margin:0;padding:clamp(24px,5vh,48px) 20px;display:grid;grid-template-rows:auto 1fr;gap:24px;}
 .login-brand{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;border:0;padding:0;text-align:center;}
 .login-brand img{width:64px;height:64px;border-radius:16px;}
 .login-brand h1{font-size:clamp(23px,5vw,30px);letter-spacing:-.6px;margin:0;}
