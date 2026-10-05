@@ -8,7 +8,7 @@ export class ClockError extends Error{constructor(message:string,public status=4
 export function fail(message:string,status=400):never{throw new ClockError(message,status);}
 export const validPin=(pin:unknown)=>typeof pin==='string'&&/^\d{6,12}$/.test(pin);
 export function hashPin(pin:string,salt:string=randomUUID()){return salt+':'+pbkdf2Sync(pin,salt,100000,32,'sha256').toString('hex');}
-export function verifyPin(pin:unknown,expected:string){if(!validPin(pin))return false;const actual=Buffer.from(hashPin(pin as string,expected.split(':')[0]));const target=Buffer.from(expected);return actual.length===target.length&&timingSafeEqual(actual,target);}
+export function verifyPin(pin:unknown,expected:string|null){if(!expected||!validPin(pin))return false;const actual=Buffer.from(hashPin(pin as string,expected.split(':')[0]));const target=Buffer.from(expected);return actual.length===target.length&&timingSafeEqual(actual,target);}
 export function clockStatus(s:State,kiosk:boolean){return {setup:!!s.hash,kiosk,store:{id:s.storeId,name:s.name,location:s.location,geofenceEnabled:s.geofenceEnabled},employees:s.employees.map(e=>({id:e.id,name:e.name,start:s.shifts.find(x=>x.employee===e.id&&x.end===null)?.start??null})).sort((a,b)=>a.name.localeCompare(b.name))};}
 export function audit(s:State,action:string,employee:string,reason:string,before:any,after:any){s.audit.push({id:randomUUID(),at:Date.now(),action,employee,reason,before:before?JSON.stringify(before):null,after:after?JSON.stringify(after):null});}
 export function payroll(s:State,p:Row){
@@ -24,7 +24,7 @@ export function applyAction(s:State,p:Row,now=Date.now()){
  if(p.action==='get_store')return {name:s.name,location:s.location,geofenceEnabled:s.geofenceEnabled};
  if(p.action==='set_store'){const settings=storeSettings(p);audit(s,p.action,s.name,'Store name, location, or geolocking updated',{name:s.name,location:s.location,geofenceEnabled:s.geofenceEnabled},settings);Object.assign(s,settings);return {ok:true};}
  if(p.action==='set_kiosk'){const email=String(p.email??'').trim().toLowerCase();if(email&&(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254))fail('Enter a valid separate store email.');audit(s,p.action,'Store tablet','Tablet access updated',{email:s.kioskEmail},{email});s.kioskEmail=email;s.kioskUid=p.kioskUid??'';return {ok:true};}
- if(p.action==='add'){const name=String(p.name??'').trim();if(!name||name.length>80||!validPin(p.employeePin))fail('Enter a name and a 6–12 digit employee PIN.');s.employees.push({id:randomUUID(),name,hash:hashPin(p.employeePin)});return {ok:true};}
+ if(p.action==='add'){const name=String(p.name??'').trim();if(!name||name.length>80||(p.employeePin!==undefined&&p.employeePin!==''&&!validPin(p.employeePin)))fail('Enter a name and, optionally, a 6–12 digit tablet PIN.');s.employees.push({id:randomUUID(),name,hash:p.employeePin?hashPin(p.employeePin):null});return {ok:true};}
  const employee=s.employees.find(e=>e.id===p.employee);if(!employee)fail('Employee not found.',404);
  const group=s.shifts.filter(x=>x.employee===employee.id);
  if(p.action==='in'){if(s.geofenceEnabled!==false){const problem=locationError(p.location,now,s.location);if(problem)fail(problem,403);}if(group.some(x=>x.end===null))fail('Already clocked in.',409);if(group.some(x=>x.end>now))fail('A shift overlaps this clock-in.',409);s.shifts.push({id:randomUUID(),employee:employee.id,start:now,end:null});return {ok:true};}
