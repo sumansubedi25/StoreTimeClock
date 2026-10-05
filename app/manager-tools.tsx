@@ -8,7 +8,7 @@ import {AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,AlertD
 import {Select,SelectTrigger,SelectValue,SelectContent,SelectItem} from '@/components/ui/select';
 type Shift={id:string;employee:string;start:number;end:number|null;name:string};
 const local=(v:number)=>{const d=new Date(v);return new Date(v-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
-const fmt=(v:number)=>new Date(v).toLocaleString('en-US',{timeZone:'America/Chicago'});
+const fmt=(v:number)=>new Date(v).toLocaleString('en-US',{timeZone:'America/Chicago',weekday:'long',year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 export default function ManagerTools({employees,shifts,pin,onSaved,logs}:{employees:{id:string;name:string}[];shifts:Shift[];pin:string;onSaved:()=>Promise<void>;logs:any[]}){
  const apiFetch=useStoreApi();
  const [open,setOpen]=useState(false),[editing,setEditing]=useState<Shift|null>(null),[mode,setMode]=useState('shift'),[employee,setEmployee]=useState(''),[start,setStart]=useState(''),[end,setEnd]=useState(''),[name,setName]=useState(''),[newPin,setNewPin]=useState(''),[reason,setReason]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[confirm,setConfirm]=useState(false);
