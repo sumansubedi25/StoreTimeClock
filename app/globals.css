@@ -68,3 +68,14 @@ main.login-page{background:#e3f2fd;width:100%;max-width:none;min-height:100vh;mi
 .login-card form button[type="submit"]:disabled{opacity:.6;}
 @media(max-width:480px){.login-card{padding:24px;}.login-card-wrap{padding-bottom:20px;}}
 @media(max-height:600px){main.login-page{gap:16px;padding-top:20px;}.login-brand{flex-direction:row;}.login-brand img{width:44px;height:44px;}.login-card-wrap{padding:0;}}
+
+/* Explicit colors keep backup deletion readable on light panels. */
+.backup-list .backup-actions{flex-wrap:wrap;}
+.backup-list .backup-actions .backup-delete{background:#b42332;color:#fff;border:1px solid #b42332;min-height:40px;}
+.backup-list .backup-actions .backup-delete:hover{background:#8f1c28;}
+.backup-list .backup-actions .backup-delete:disabled{opacity:.5;}
+@media(max-width:720px){
+ .backup-list .backup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;}
+ .backup-list .backup-actions button{min-width:0;width:100%;}
+ .backup-list .backup-actions .backup-delete{grid-column:1/-1;}
+}
