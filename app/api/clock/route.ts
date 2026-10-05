@@ -1,13 +1,13 @@
 import {employeeBinding,checkOtherStores} from '../../../lib/employee-access';
 import {firestore,adminAuth,authenticatedUser,managerUid} from '../../../lib/firebase-admin';
-import {readState,snapshot,persist,root,createBackup,listBackups,getBackup,restorePayload} from '../../../lib/firebase-store';
+import {readState,snapshot,persist,root,createBackup,listBackups,deleteBackup,getBackup,restorePayload} from '../../../lib/firebase-store';
 import type {State} from '../../../lib/firebase-store';
 import {ClockError,applyAction,clockStatus,fail,verifyPin} from '../../../lib/firebase-clock';
 import {validStoreId,storeMeta,storeRole,allowedAction,sameOrigin} from '../../../lib/store-policy';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
-const known=new Set(['setup','report','payroll','get_kiosk','set_kiosk','get_store','set_store','add','set_pay','edit_employee','save_shift','delete_shift','in','out','backup_list','backup_create','backup_download','backup_restore','backup_import']);
-const readOnly=new Set(['report','payroll','get_kiosk','get_store','backup_list','backup_create','backup_download','backup_restore','backup_import']);
+const known=new Set(['setup','report','payroll','get_kiosk','set_kiosk','get_store','set_store','add','set_pay','edit_employee','save_shift','delete_shift','in','out','backup_list','backup_delete','backup_create','backup_download','backup_restore','backup_import']);
+const readOnly=new Set(['report','payroll','get_kiosk','get_store','backup_list','backup_delete','backup_create','backup_download','backup_restore','backup_import']);
 const json=(data:any,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 function role(user:{uid:string},state:State){return storeRole(user.uid,state,managerUid());}
 function selectedStore(req:Request){const id=req.headers.get('x-store-id');if(!validStoreId(id))fail('Choose a valid store.',400);return id;}
@@ -75,6 +75,7 @@ export async function POST(req:Request){try{
  if('error' in result)return json({error:result.error},result.status);
  const state=result.state!;
  if(p.action==='backup_list')return json({backups:await listBackups(storeId)});
+ if(p.action==='backup_delete'){await deleteBackup(storeId,String(p.key??''));return json({ok:true});}
  if(p.action==='backup_create')return json({ok:true,backup:await createBackup(state)});
  if(p.action==='backup_download'){const payload=await getBackup(storeId,String(p.key??''));return new Response(JSON.stringify(payload),{headers:{'Content-Type':'application/json','Cache-Control':'no-store','Content-Disposition':`attachment; filename="time-clock-${storeId}-backup.json"`}});}
  if(p.action==='backup_restore'||p.action==='backup_import'){
@@ -83,6 +84,5 @@ export async function POST(req:Request){try{
   try{await createBackup(state,'before-restore');restored=await restorePayload(payload,state);}catch(e){return json({error:e instanceof Error?e.message:'Restore failed.'},400);}
   try{await createBackup(await snapshot(storeId),'after-restore');return json({ok:true,restored});}catch{return json({ok:true,restored,backupWarning:'Restore completed, but the new backup failed. Create a manager backup.'});}
  }
- if(result.changed){try{await createBackup(state,'automatic');}catch{console.error('Automatic backup failed');return json({...result.data,backupWarning:'Change saved, but automatic backup failed. Create a manager backup.'});}}
  return json(result.data);
  }catch(e){return errorResponse(e);}}

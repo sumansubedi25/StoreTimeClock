@@ -1,5 +1,5 @@
 import {adminAuth,authenticatedUser,firestore,managerUid} from '../../../lib/firebase-admin';
-import {readState,root,persist,createBackup} from '../../../lib/firebase-store';
+import {readState,root,persist} from '../../../lib/firebase-store';
 import {employeeBinding} from '../../../lib/employee-access';
 import {payroll,verifyPin,fail,ClockError,audit} from '../../../lib/firebase-clock';
 import {sameOrigin,validStoreId,storeRole} from '../../../lib/store-policy';
@@ -57,6 +57,5 @@ export async function POST(req:Request){try{
   return {data:{ok:true},state:{...after,revision:state.revision+1}};
  });
  if('error' in result)return json({error:result.error},result.status);
- if(result.state)try{await createBackup(result.state);}catch{return json({...result.data,backupWarning:'Access saved; automatic backup failed.'});}
  return json(result.data);
  }catch(e){return error(e);}}

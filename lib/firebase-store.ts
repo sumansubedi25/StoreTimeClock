@@ -36,6 +36,12 @@ export async function createBackup(state:State,kind='manual'){
  return {key,uploaded,size};
 }
 export async function listBackups(storeId:string){const q=await root(storeId).collection('backups').orderBy('uploaded','desc').limit(100).get();return q.docs.map(d=>({key:d.id,...d.data()}));}
+export async function deleteBackup(storeId:string,key:string){
+ if(!/^[\w-]{1,100}$/.test(key))throw Error('Invalid backup.');
+ const ref=root(storeId).collection('backups').doc(key);
+ // Include every chunk: deleting just the parent would leave stored backup data.
+ await firestore().recursiveDelete(ref);
+}
 export async function getBackup(storeId:string,key:string){
  if(!/^[\w-]{1,100}$/.test(key))throw Error('Invalid backup.');
  const ref=root(storeId).collection('backups').doc(key),meta=await ref.get();if(!meta.data()?.complete)throw Error('Backup not found.');
