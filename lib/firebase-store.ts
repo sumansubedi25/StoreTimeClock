@@ -51,7 +51,7 @@ export function validateBackup(payload:any,storeId?:string):Pick<State,'hash'|'e
  if(hash!==null&&!validHash(hash))throw Error('Invalid manager PIN hash.');
  for(const table of TABLES){const seen=new Set();for(const row of t[table]){if(!row||typeof row.id!=='string'||!/^[\w-]{1,128}$/.test(row.id)||seen.has(row.id))throw Error('Invalid or duplicate record ID.');seen.add(row.id);if(Buffer.byteLength(JSON.stringify(row))>500000)throw Error('Backup record too large.');}}
  const ids=new Set(t.employees.map((e:Row)=>e.id));
- if(t.employees.some((e:Row)=>typeof e.name!=='string'||!e.name.trim()||e.name.length>80||!validHash(e.hash)))throw Error('Invalid employee data.');
+ if(t.employees.some((e:Row)=>typeof e.name!=='string'||!e.name.trim()||e.name.length>80||(e.hash!==null&&!validHash(e.hash))))throw Error('Invalid employee data.');
  const grouped=new Map<string,Row[]>();
  for(const s of t.shifts){if(!ids.has(s.employee)||!Number.isSafeInteger(s.start)||s.start<=0||(s.end!==null&&(!Number.isSafeInteger(s.end)||s.end<=s.start)))throw Error('Invalid shift.');const group=grouped.get(s.employee)??[];group.push(s);grouped.set(s.employee,group);}
  for(const group of grouped.values()){group.sort((a,b)=>a.start-b.start);for(let i=1;i<group.length;i++)if((group[i-1].end??Infinity)>group[i].start)throw Error('Backup contains overlapping shifts.');}
