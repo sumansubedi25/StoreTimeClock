@@ -79,3 +79,11 @@ main.login-page{background:#e3f2fd;width:100%;max-width:none;min-height:100vh;mi
  .backup-list .backup-actions button{min-width:0;width:100%;}
  .backup-list .backup-actions .backup-delete{grid-column:1/-1;}
 }
+
+.backup-selection{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 0;border-bottom:1px solid #dbe3eb;}
+.backup-selection label,.backup-list .backup-pick{display:flex;align-items:center;gap:12px;margin:0;cursor:pointer;min-width:0;}
+.backup-selection input,.backup-list .backup-pick input{appearance:auto;width:20px;height:20px;flex:0 0 20px;accent-color:#133651;}
+.backup-selection .backup-delete{background:#b42332;color:#fff;border:1px solid #b42332;min-height:44px;padding:8px 16px;margin-left:auto;}
+.backup-selection .backup-delete:hover{background:#8f1c28;}
+.backup-selection .backup-delete:disabled{opacity:.5;}
+@media(max-width:720px){.backup-selection .backup-delete{width:100%;margin-left:0;}}
