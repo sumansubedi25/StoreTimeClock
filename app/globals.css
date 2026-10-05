@@ -87,3 +87,13 @@ main.login-page{background:#e3f2fd;width:100%;max-width:none;min-height:100vh;mi
 .backup-selection .backup-delete:hover{background:#8f1c28;}
 .backup-selection .backup-delete:disabled{opacity:.5;}
 @media(max-width:720px){.backup-selection .backup-delete{width:100%;margin-left:0;}}
+
+.manager-home{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.manager-overview{grid-column:1/-1;}
+.manager-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px;}
+.manager-counts>div{background:#edf4fa;border-radius:12px;padding:18px;}
+.manager-counts strong{display:block;font-size:32px;color:#133651;}
+.manager-counts span{display:block;font-size:14px;color:#596d7e;margin-top:4px;}
+.manager-shortcuts>button{background:#133651;color:#fff;min-height:46px;padding:10px 18px;}
+.manager-shortcuts>p{line-height:1.6;}
+@media(max-width:720px){.manager-home{grid-template-columns:1fr;}.manager-counts{gap:8px;}.manager-counts>div{padding:12px 8px;}.manager-counts strong{font-size:26px;}}
