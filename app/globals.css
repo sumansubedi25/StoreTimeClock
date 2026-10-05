@@ -52,3 +52,19 @@
 @media(max-width:720px){.store-watermark{background-size:84vw auto;}}
 
 .king-market-watermark{background-image:url('/logos/king-market-2-circle.svg');}
+
+/* Branded sign-in screen with a centered, scroll-safe card. */
+main.login-page{width:100%;max-width:none;min-height:100vh;min-height:100dvh;margin:0;padding:clamp(24px,5vh,48px) 20px;display:grid;grid-template-rows:auto 1fr;gap:24px;}
+.login-brand{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;border:0;padding:0;text-align:center;}
+.login-brand img{width:64px;height:64px;border-radius:16px;}
+.login-brand h1{font-size:clamp(23px,5vw,30px);letter-spacing:-.6px;margin:0;}
+.login-card-wrap{display:flex;align-items:center;justify-content:center;min-width:0;padding:16px 0 40px;}
+.login-card{width:100%;max-width:440px;margin:0;padding:28px;box-shadow:0 12px 36px #102e480c;}
+.login-card h2{font-size:26px;margin:0 0 8px;}
+.login-card p{margin:0 0 20px;}
+.login-card form input{width:100%;min-height:48px;font-size:16px;}
+.login-card form button[type="submit"]{width:100%;min-height:48px;background:#133651;color:#fff;border:1px solid #133651;font-weight:700;}
+.login-card form button[type="submit"]:hover{background:#204c6b;}
+.login-card form button[type="submit"]:disabled{opacity:.6;}
+@media(max-width:480px){.login-card{padding:24px;}.login-card-wrap{padding-bottom:20px;}}
+@media(max-height:600px){main.login-page{gap:16px;padding-top:20px;}.login-brand{flex-direction:row;}.login-brand img{width:44px;height:44px;}.login-card-wrap{padding:0;}}
