@@ -57,7 +57,7 @@ export function validateBackup(payload:any,storeId?:string):Pick<State,'hash'|'e
  if(hash!==null&&!validHash(hash))throw Error('Invalid manager PIN hash.');
  for(const table of TABLES){const seen=new Set();for(const row of t[table]){if(!row||typeof row.id!=='string'||!/^[\w-]{1,128}$/.test(row.id)||seen.has(row.id))throw Error('Invalid or duplicate record ID.');seen.add(row.id);if(Buffer.byteLength(JSON.stringify(row))>500000)throw Error('Backup record too large.');}}
  const ids=new Set(t.employees.map((e:Row)=>e.id));
- if(t.employees.some((e:Row)=>typeof e.name!=='string'||!e.name.trim()||e.name.length>80||(e.hash!==null&&!validHash(e.hash))))throw Error('Invalid employee data.');
+ if(t.employees.some((e:Row)=>typeof e.name!=='string'||!e.name.trim()||e.name.length>80||(e.archivedAt!=null&&(!Number.isSafeInteger(e.archivedAt)||e.archivedAt<=0))||(e.hash!==null&&!validHash(e.hash))))throw Error('Invalid employee data.');
  const grouped=new Map<string,Row[]>();
  for(const s of t.shifts){if(!ids.has(s.employee)||!Number.isSafeInteger(s.start)||s.start<=0||(s.end!==null&&(!Number.isSafeInteger(s.end)||s.end<=s.start)))throw Error('Invalid shift.');const group=grouped.get(s.employee)??[];group.push(s);grouped.set(s.employee,group);}
  for(const group of grouped.values()){group.sort((a,b)=>a.start-b.start);for(let i=1;i<group.length;i++)if((group[i-1].end??Infinity)>group[i].start)throw Error('Backup contains overlapping shifts.');}
@@ -65,7 +65,7 @@ export function validateBackup(payload:any,storeId?:string):Pick<State,'hash'|'e
  for(const r of t.payRates)payPeriod(r.effective);
  for(const a of t.audit)if(!Number.isSafeInteger(a.at)||a.at<=0||typeof a.action!=='string'||typeof a.employee!=='string'||typeof a.reason!=='string'||a.reason.length>500||![a.before,a.after].every(v=>v===null||v===undefined||typeof v==='string'))throw Error('Invalid audit record.');
  // Sanitize fields so unexpected uploaded fields cannot affect application state.
- return {hash,employees:t.employees.map((e:Row)=>({id:e.id,name:e.name,hash:e.hash})),shifts:t.shifts.map((s:Row)=>({id:s.id,employee:s.employee,start:s.start,end:s.end})),payRates:t.payRates.map((r:Row)=>({id:r.id,employee:r.employee,effective:r.effective,type:r.type,cents:r.cents})),audit:t.audit.map((a:Row)=>({id:a.id,at:a.at,action:a.action,employee:a.employee,reason:a.reason,before:a.before??null,after:a.after??null}))};
+ return {hash,employees:t.employees.map((e:Row)=>({id:e.id,name:e.name,hash:e.hash,...(e.archivedAt?{archivedAt:e.archivedAt}:{})})),shifts:t.shifts.map((s:Row)=>({id:s.id,employee:s.employee,start:s.start,end:s.end})),payRates:t.payRates.map((r:Row)=>({id:r.id,employee:r.employee,effective:r.effective,type:r.type,cents:r.cents})),audit:t.audit.map((a:Row)=>({id:a.id,at:a.at,action:a.action,employee:a.employee,reason:a.reason,before:a.before??null,after:a.after??null}))};
 }
 export async function restorePayload(payload:any,expected:State){
  const data=validateBackup(payload,expected.storeId),generation=crypto.randomUUID(),writer=firestore().bulkWriter();
