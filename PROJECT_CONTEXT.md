@@ -48,7 +48,7 @@ Employee email access: PR #1. Geolocking for clock-out: PR #2. Latest validation
 
 ## Pending, not implemented
 
-Email confirmation to employees after clock-out, including shift details and period totals. After each semimonthly period, reports of hours and estimated pay to each store's manager, with all store reports copied to the owner. Requirements confirmed, but email provider configuration, scheduler and delivery are NOT implemented.
+Email confirmation to employees after clock-out remains unimplemented. Scheduled semimonthly PDF payroll reports are implemented; Gmail secret setup and separate Cloud Functions deployment by the owner are pending. No live delivery has been verified. See PAYROLL_EMAILS.md.
 
 ## Working preferences
 
@@ -83,3 +83,11 @@ Managers can remove an employee under Employee email access using Remove employe
 - Uses the existing save_shift endpoint with exact shift ID, original start/end, and unchanged clock-in time. Existing authorization, stale-edit/overlap validation, and audit history remain enforced. Managers can do this from any location.
 - Success refreshes the dashboard and removes the completed shift from the dialog. Failed/stale saves retain the form and show the error. Tablet/employee dashboards do not expose this control.
 - Validation: production build/TypeScript passed; exercised component flow verified payload, PIN/reason, success refresh and stale-shift error handling.
+
+## Scheduled payroll PDF emails (October 6, 2026)
+- payPeriodPayrollEmail runs at 06:00 Central on the 1st and 16th for the last closed semimonthly period. Existing daily backup schedule is unchanged.
+- Gmail SMTP sender is the owner Firebase Auth email. PAYROLL_GMAIL_APP_PASSWORD is a Firebase secret; PAYROLL_OWNER_UID defaults to the existing owner UID. No credentials belong in the repository.
+- Each store manager receives their own report; owner receives all reports. Current enabled Firebase Auth accounts and store manager assignment are checked immediately before sending.
+- PDFs include employee hours/rates/gross pay, store totals and detailed shifts, with open shifts/missing rates flagged. Salary calculations are unchanged.
+- Frozen report snapshots and per-recipient delivery status are stored under stores/{id}/payrollReports/{periodStart}. Sent deliveries are skipped. Uncertain SMTP outcomes require review, not blind resend. Later corrections do not automatically resend the snapshot.
+- Activation pending: owner must set Gmail App Password and deploy functions:backups from a fresh ZIP. App Hosting rollout alone does not activate it. No live emails sent during implementation.
