@@ -1,3 +1,5 @@
+import {boundedJson} from '../../../lib/request-body';
+import {storePreflight} from '../../../lib/store-preflight';
 import {ensureStoreAccessCode,validAccessCode} from '../../../lib/store-access-code';
 import {randomUUID} from 'node:crypto';
 import {adminAuth,authenticatedUser,firestore,managerUid} from '../../../lib/firebase-admin';
@@ -16,13 +18,13 @@ export async function GET(req:Request){try{
 export async function POST(req:Request){try{
  if(!sameOrigin(req))fail('Request not allowed.',403);
  const user=await authenticatedUser(req);if(!user)fail('Sign in to continue.',401);
- const body=await req.text();if(Buffer.byteLength(body)>10000)fail('Request too large.');
- let p:any;try{p=JSON.parse(body);}catch{fail('Invalid request.');}
+ const p=await boundedJson(req);
  if(!['submit','list','approve','reject'].includes(p?.action))fail('Unknown action.');
  let selectedId=req.headers.get('x-store-id');
  if(p.action==='submit'){if(user.email_verified!==true)fail('Verify your email before requesting access.',403);if(!validAccessCode(p.accessCode))fail('Enter the six-digit store code provided by your manager.');const registry=await firestore().doc('storeAccessCodes/'+p.accessCode).get();selectedId=registry.data()?.storeId??null;}
  if(!validStoreId(selectedId))fail('Store code not found. Check the six-digit code with your manager.');
  const id=selectedId;
+ if(p.action!=='submit')await storePreflight(user.uid,id,true);
  let account:any;
  if(p.action==='approve'){
   if(typeof p.uid!=='string'||! /^[\w-]{1,128}$/.test(p.uid))fail('Choose a request.');
@@ -30,8 +32,9 @@ export async function POST(req:Request){try{
   if(account.disabled||!account.emailVerified||account.uid===managerUid())fail('Use an enabled, verified employee login.');
  }
  const result=await firestore().runTransaction(async tx=>{
-  const state=await readState(tx,id),now=Date.now();
+  const now=Date.now();
   if(p.action==='submit'){
+   const store=await tx.get(root(id));if(!store.exists)fail('Store not found.',404);
    if(user.email_verified!==true||typeof user.email!=='string')fail('Verify your email before requesting access.',403);
    const name=typeof p.name==='string'?p.name.trim():'';if(!name||name.length>80)fail('Enter your name (up to 80 characters).');
    const claim=await tx.get(firestore().doc('storeAccounts/'+user.uid));
@@ -42,10 +45,12 @@ export async function POST(req:Request){try{
    if(existing?.status==='pending')return {data:{ok:true}};
    if(existing&&now-existing.createdAt<86400000)fail('Wait 24 hours before requesting this store again.',429);
    if(!existing&&all.size>=10)fail('Contact the owner to request another store.',429);
-   const data={uid:user.uid,storeId:id,storeName:state.name,name,email:user.email.toLowerCase(),status:'pending',createdAt:now};
+   const data={uid:user.uid,storeId:id,storeName:store.data()?.name??'Store',name,email:user.email.toLowerCase(),status:'pending',createdAt:now};
    tx.set(root(id).collection('accessRequests').doc(user.uid),data);tx.set(own.doc(id),data);
    return {data:{ok:true}};
   }
+  await storePreflight(user.uid,id,true,tx);
+  const state=await readState(tx,id);
   if(storeRole(user.uid,state,managerUid())!=='manager')fail('Manager access required.',403);
   const gateRef=root(id).collection('attempts').doc('manager'),gateDoc=p.action==='list'?null:await tx.get(gateRef),gate=gateDoc?.data();
   if(p.action!=='list'&&!p.pin)fail('Enter your manager PIN to authorize this change.',403);

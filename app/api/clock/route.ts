@@ -1,3 +1,5 @@
+import {boundedJson,IMPORT_BODY_LIMIT} from '../../../lib/request-body';
+import {storePreflight,authorizeClockAction} from '../../../lib/store-preflight';
 import {employeeBinding,checkOtherStores} from '../../../lib/employee-access';
 import {firestore,adminAuth,authenticatedUser,managerUid} from '../../../lib/firebase-admin';
 import {readState,snapshot,persist,root,createBackup,listBackups,deleteBackup,getBackup,restorePayload} from '../../../lib/firebase-store';
@@ -17,9 +19,13 @@ export async function POST(req:Request){try{
  if(!sameOrigin(req))return json({error:'Request not allowed.'},403);
  const user=await authenticatedUser(req);if(!user)return json({error:'Sign in to continue.'},401);
  const storeId=selectedStore(req);
- const text=await req.text();if(Buffer.byteLength(text)>20000000)return json({error:'Upload too large (maximum 20 MB).'},413);
- let p:any;try{p=JSON.parse(text);}catch{return json({error:'Invalid request.'},400);}
+ const gate=await storePreflight(user.uid,storeId);
+ const importUpload=new URL(req.url).searchParams.get('action')==='backup_import';
+ if(importUpload&&gate.access!=='manager')fail('Manager access required.',403);
+ const p=await boundedJson(req,importUpload?IMPORT_BODY_LIMIT:undefined);
+ if(importUpload&&p.action!=='backup_import')fail('Import endpoint only accepts backup_import.');
  if(!p||typeof p!=='object'||!known.has(p.action))return json({error:'Unknown action.'},400);
+ authorizeClockAction(gate,p.action);
  // The designated manager can enable only an existing Firebase Auth account.
  if(p.action==='set_kiosk'){
   const meta=await root(storeId).get();
@@ -27,9 +33,10 @@ export async function POST(req:Request){try{
   const info=storeMeta(storeId,meta.data()??{},managerUid());
   if(storeRole(user.uid,info,managerUid())!=='manager')return json({error:'Manager access required.'},403);
   const email=String(p.email??'').trim().toLowerCase();p.kioskUid='';
-  if(email){let account;try{account=await adminAuth().getUserByEmail(email);}catch{return json({error:'Create this store account in Firebase Authentication first.'},400);}if(account.uid===managerUid())return json({error:'Use a separate store account.'},400);if(account.disabled)return json({error:'This store account is disabled.'},400);p.kioskUid=account.uid;}
+  if(email){let account;try{account=await adminAuth().getUserByEmail(email);}catch{return json({error:'Create this store account in Firebase Authentication first.'},400);}if(account.uid===managerUid())return json({error:'Use a separate store account.'},400);if(account.disabled)return json({error:'This store account is disabled.'},400);if(!account.emailVerified)return json({error:'This account must sign in and verify its email before tablet access can be assigned.'},400);p.kioskUid=account.uid;}
  }
  const result=await firestore().runTransaction(async tx=>{
+  const freshGate=await storePreflight(user.uid,storeId,false,tx);authorizeClockAction(freshGate,p.action);
   const before=await readState(tx,storeId),access=role(user,before);
   const personal=access?null:await employeeBinding(tx,user.uid,storeId,before);
   if(!access&&!personal)fail('This account is not authorized for this store.',403);
