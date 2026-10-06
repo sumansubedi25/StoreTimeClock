@@ -105,3 +105,14 @@ button.archive-employee{display:block;background:#b42332;color:#fff;border:1px s
 .store-access-code{display:inline-flex;align-items:center;gap:.4rem;background:#e3f2fd;color:#123047;padding:.3rem .6rem;border-radius:.5rem;font-size:.85rem}.store-access-code b{font-variant-numeric:tabular-nums;letter-spacing:.08em}
 
 .manager-counts>.clocked-in-action{background:#edf4fa;border:1px solid #a4c8df;border-radius:12px;padding:18px;text-align:left;cursor:pointer;font:inherit;color:#133651;min-width:0;white-space:normal;height:auto}.manager-counts>.clocked-in-action:hover{background:#dceef9}.manager-counts>.clocked-in-action:focus-visible{outline:3px solid #17638f;outline-offset:3px}.clocked-in-action small{display:block;font-size:12px;margin-top:6px;color:#17638f}.quick-clock-out-list>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #d5e0e8}.quick-clock-out-list small{display:block;color:#596d7e;margin-top:4px}@media(max-width:720px){.manager-counts>.clocked-in-action{padding:12px 8px}.quick-clock-out-list>div{flex-wrap:wrap}}
+
+/* Explicit shift-action colors also work in portaled confirmation dialogs. */
+button.shift-delete{background:#b42332;color:#fff;border:1px solid #b42332;min-height:44px;padding:10px 16px;}
+button.shift-delete:hover:not(:disabled){background:#8f1c28;border-color:#8f1c28;}
+button.shift-delete:disabled{background:#f7e7e9;color:#78202a;border-color:#c99198;opacity:1;cursor:not-allowed;}
+button.shift-save{background:#133651;color:#fff;border:1px solid #133651;min-height:44px;padding:10px 16px;}
+button.shift-save:hover:not(:disabled){background:#204c6b;}
+button.shift-save:disabled{background:#e5ebf0;color:#526a7d;border-color:#a8bac9;opacity:1;}
+button.shift-delete:focus-visible,button.shift-save:focus-visible{outline:3px solid #17638f;outline-offset:3px;}
+.admin-dialog .form-actions{flex-wrap:wrap;}
+@media(max-width:480px){.admin-dialog .form-actions>button{flex:1 1 100%;margin-top:0;}}
