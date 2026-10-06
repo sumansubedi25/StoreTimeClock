@@ -13,11 +13,11 @@ Updated October 4, 2026. This is a long-term business time-clock app, initially 
 
 ## Roles and employee workflow
 
-The owner retains access to all stores and manager controls. Ownership is configured using the Firebase UID in MANAGER_UID, not by email matching. Managers have assigned stores and use each store's manager PIN for controls.
+The owner retains access to all stores and manager controls. Ownership is configured using the Firebase UID in MANAGER_UID, not by email matching. Managers have assigned stores; their Firebase email login and server-side store role open reports and management tools without an entry PIN; changes retain manager PIN authorization.
 
 Current preferred workflow: employees use their own phones and email accounts, rather than shared store tablets. Create their email/password login in Firebase Authentication, then link it to an employee record using Manager → Employee email access. Authentication alone does not assign a role; Firestore stores permissions.
 
-One email may be linked to employee records at multiple stores. Employees can clock only themselves in/out and view only their own shifts, decimal hours, and estimated gross pay, including per-store and combined period totals. Removing email access revokes only the selected store while retaining hours/pay history and other store assignments. It does not delete the Firebase login. Full employee deactivation is not implemented. Existing PIN/tablet access remains implemented but is not the current preferred workflow.
+One email may be linked to employee records at multiple stores. Employees can clock only themselves in/out and view only their own shifts, decimal hours, and estimated gross pay, including per-store and combined period totals. Removing email access revokes only the selected store while retaining hours/pay history and other store assignments. It does not delete the Firebase login. Employee removal archives records and revokes access for the selected store. Existing PIN/tablet access remains implemented but is not the current preferred workflow.
 
 ## Hours, pay and location
 
@@ -42,7 +42,7 @@ Firebase website deployments update Android/iOS web apps and the existing APK wh
 
 ## Data and validation
 
-Store records and chunked JSON backups are in Firestore. Account/store assignments are outside backup generations and stay unchanged by JSON restores. Recheck employee mappings when restoring different employee IDs. Independent downloaded backups protect against losing the Firebase project; do not claim scheduled backups or retention cleanup are configured.
+Store records and chunked JSON backups are in Firestore. Account/store assignments are outside backup generations and stay unchanged by JSON restores. Recheck employee mappings when restoring different employee IDs. Independent downloaded backups protect against losing the Firebase project; Daily backup scheduling was deployed October 5, 2026; automatic backup retention cleanup is not configured.
 
 Employee email access: PR #1. Geolocking for clock-out: PR #2. Latest validation: 32 automated tests and Next.js production build/TypeScript checks passed. Tests use in-memory Firebase substitutes; actual Firebase permissions and phone GPS need live verification. Preserve existing live data during changes.
 
@@ -54,18 +54,25 @@ Email confirmation to employees after clock-out, including shift details and per
 
 Give short, concrete next steps. User often supplies screenshots and replies 'done'. Explain how each deployment reaches installed apps. Update this document when project behavior changes. Use the GitHub connector for repository changes; avoid unnecessary repeated permission requests.
 
-Employee setup is email-first: add name without an employee PIN, then link Firebase Auth email in Employee access. New employees have a null PIN hash; backup restore supports this. Manager PIN remains required. Existing shared-tablet PINs are preserved; optional tablet PIN setup/reset is under Edit employee → Optional shared-tablet PIN.
+Employee setup is email-first: add name without an employee PIN, then link Firebase Auth email in Employee access. New employees have a null PIN hash; backup restore supports this. Manager tools and reports open with the signed-in manager/owner session; changes still require the manager PIN. Existing shared-tablet PINs are preserved; optional tablet PIN setup/reset is under Edit employee → Optional shared-tablet PIN.
 
 Employee, manager, and owner screens sign out after two minutes without trusted user interaction. Returning from background checks elapsed wall-clock time before accepting activity; last activity survives reloads. Signing back in requires Firebase email/password. Shared-tablet kiosk sessions remain exempt. This UI inactivity lock never clocks an employee out or ends their shift.
 
-Backup policy updated: no backups after ordinary edits, employee access changes, or punches. Managers can delete backups and all their chunks with manager PIN confirmation. Manual backups and before/after restore safety copies remain. functions/dailyStoreBackup runs at midnight America/Chicago once deployed separately; GitHub App Hosting rollout alone does not activate the scheduler. See DAILY_BACKUPS.md for activation. No automatic deletion/retention policy.
+Backup policy updated: no backups after ordinary edits, employee access changes, or punches. Managers can delete backups and all their chunks using manager email authorization, manager PIN, and a deletion confirmation. Manual backups and before/after restore safety copies remain. functions/dailyStoreBackup runs at midnight America/Chicago once deployed separately; GitHub App Hosting rollout alone does not activate the scheduler. See DAILY_BACKUPS.md for activation. No automatic deletion/retention policy.
 
 Managers can remove an employee under Employee email access using Remove employee · keep records. This archives the record with archivedAt, clears tablet PIN access, and atomically unlinks only that store's email assignment. Open shifts must be closed first. Active lists exclude archived staff; historical shifts and pay remain. Salary remains unchanged for the archive pay period, then archived staff are excluded from future payroll unless a shift overlaps that period. Backups preserve archive state. Archived employees are listed in the Employee access panel; there is no permanent record deletion or reactivation UI.
 
 ## Employee access requests (October 6, 2026)
 - Public employee signup uses Firebase email/password; email verification required before submitting a store request. Existing manager/kiosk/owner logins cannot request employee access.
 - Managers share the store code shown in Employee access requests under Management tools. No public store list is exposed.
-- Requests are pending until that store’s manager/owner approves with manager PIN. Manager can create a new employee without tablet PIN, or link an unlinked active employee to preserve history and pay settings. New employees need their rate set separately; existing salary settings remain unchanged.
+- Requests are pending until that store’s manager/owner approves using their signed-in manager account and manager PIN. Manager can create a new employee without tablet PIN, or link an unlinked active employee to preserve history and pay settings. New employees need their rate set separately; existing salary settings remain unchanged.
 - Employees request additional stores from Request another store; approvals add assignments without replacing other stores. Active shifts block account reassignment.
 - Pending/rejected accounts cannot read or punch. Resolution is atomic and repeated approvals are refused; daily resubmission cooldown and ten-store cap limit requests. Requests and assignments are outside record backups.
 - Daily backup function was deployed by the owner October 5, 2026; first scheduled run still needs confirming in the app.
+
+## Manager layout and six-digit access codes (October 6, 2026)
+- Every store receives a stable, randomly allocated six-digit accessCode on its first authorized store listing. A transaction reserves storeAccessCodes/{code} uniquely; collisions retry. Store IDs and all records remain unchanged.
+- The signed-in page header shows the current store name and its six-digit code. Employee requests accept accessCode only, resolve it server-side, and still require verified email and store manager approval. Raw IDs such as main are no longer access codes.
+- Manager dashboard has one Management tools button. Opening it immediately loads reports without a manager PIN. Server-side manager/store authorization protects every route. Read-only manager views open without PIN; mutations and backup download/restore retain PIN authorization through Authorize changes on the tools page. Tablet PIN checks and personal employee restrictions remain enforced.
+- Management page order starts Hours & pay owed, Manual controls, Shift history, then administrative panels. The all-time Completed shifts summary card is removed.
+- Validation: 51 tests passed, production build/TypeScript passed, and rendered manager UI checks verified button count, no PIN gate, removed completed card, and section order.
