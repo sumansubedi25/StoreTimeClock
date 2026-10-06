@@ -51,11 +51,13 @@ export async function POST(req:Request){try{
   }
   const employee=before.employees.find(e=>e.id===p.employee);
   const isPunch=['in','out'].includes(p.action);
-  const requiresPin=!personal&&p.action!=='setup'&&!(p.action==='backup_import'&&!before.hash);
+  const managerView=access==='manager'&&['report','payroll','get_kiosk','get_store','backup_list'].includes(p.action);
+  const requiresPin=!personal&&!managerView&&p.action!=='setup'&&!(p.action==='backup_import'&&!before.hash);
   // Separate lockout counters stop one employee from locking out the manager.
   const gateRef=root(storeId).collection('attempts').doc(isPunch&&employee?'employee-'+employee.id:'manager');
   const gateDoc=requiresPin?await tx.get(gateRef):null;const gate=gateDoc?.data();const now=Date.now();
   if(requiresPin){
+   if(access==='manager'&&!p.pin)fail('Enter your manager PIN to authorize this change.',403);
    if(!before.hash)fail('Set a manager PIN or import your existing backup first.');
    if(isPunch&&!employee)fail('Choose an employee.');
    if(gate&&gate.count>=5&&gate.until>now)return {error:'Too many incorrect PINs. Try again in 5 minutes.',status:429};
