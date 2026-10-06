@@ -27,7 +27,7 @@ Creating a Firebase Authentication user alone does not assign store access. Empl
 
 Employees can register in the app, verify their email and request a store using its six-digit access code. The code appears beside the store name. A request does not grant access until the assigned manager or owner approves it using the manager PIN. Approval can link an existing employee record or create a new one; configure pay separately for new employees.
 
-Existing Firebase emails can also be linked manually under Employee email access. An employee can request another store without losing existing assignments. Owner, manager, tablet and employee identities must remain separate.
+Existing Firebase emails can also be linked manually under Employee email access. New employee links, tablet assignments and manager assignments (including new stores) require the target Firebase account to have a verified email. Sign in and use **Verify account email** (or **Send verification email** on the access-request screen), open the email link, and sign back in before the manager retries. Existing assignments are not automatically revoked; review previously linked identities separately. An employee can request another store without losing existing assignments. Owner, manager, tablet and employee identities must remain separate.
 
 **Remove employee · keep records** archives the selected store's employee, clears tablet PIN access and revokes that store's email assignment. Close open shifts first. Historical shifts/pay and access to other stores remain. This does not delete the Firebase login. There is no permanent employee-record deletion or reactivation UI.
 
@@ -135,9 +135,17 @@ Import/restore replaces the selected store's business records. Store-tagged back
 
 Before any import, download a current backup and compare employee counts, active shifts, hours, rates and totals afterward. Do not use production payroll records for destructive testing.
 
+## Request hardening (October 6, 2026)
+
+Clock and employee-management POSTs authorize store access using metadata and individual binding records before reading bodies or full store history. Access-request POSTs parse at most 10 KB to distinguish public submission from management; manager actions authorize before account lookup/history reads. Mutation transactions recheck permissions before loading collections. Public access submissions read store metadata, not employee/payroll history.
+
+All POST routes count actual streamed body bytes and reject oversized payloads, including absent or misleading Content-Length. Normal requests are limited to 10,000 bytes. The 20,000,000-byte exception is restricted to manager-authorized `/api/clock?action=backup_import` with a matching body action; manager PIN and existing restore checks still apply. Reload older app pages before importing large backups.
+
+These controls remove the identified full-history read amplification by unassigned accounts, but do not provide general rate limiting, a cost cap or protection from every denial-of-service scenario. GPS remains a deterrent based on client-supplied readings.
+
 ## Verification and remaining checks
 
-As of October 6, **58 automated tests passed** after the payroll-email feature. Previous production build/TypeScript checks passed for the manager/dashboard changes. The subsequent button contrast fix received TSX syntax and CSS review; live mobile rendering is not yet confirmed.
+As of October 6, **70 automated tests passed**, including the authorization/body-limit/email-verification hardening. Production build and TypeScript checks passed after those changes. Live mobile rendering of the earlier button contrast fix still needs confirmation.
 
 Tests use mock identities, an in-memory database and fake mail transports. They cover payroll boundaries/DST, account/store isolation, geolocking, archiving, access approvals, shift conflicts, backups and email recipient/retry behavior. The owner reported the live September email test worked after a Gmail credential replacement; this is not a comprehensive security audit or proof that every manager received a message.
 
