@@ -76,3 +76,10 @@ Managers can remove an employee under Employee email access using Remove employe
 - Manager dashboard has one Management tools button. Opening it immediately loads reports without a manager PIN. Server-side manager/store authorization protects every route. Read-only manager views open without PIN; mutations and backup download/restore retain PIN authorization through Authorize changes on the tools page. Tablet PIN checks and personal employee restrictions remain enforced.
 - Management page order starts Hours & pay owed, Manual controls, Shift history, then administrative panels. The all-time Completed shifts summary card is removed.
 - Validation: 51 tests passed, production build/TypeScript passed, and rendered manager UI checks verified button count, no PIN gate, removed completed card, and section order.
+
+## Dashboard manual clock-out (October 6, 2026)
+- Manager dashboard Clocked in count is an accessible button opening a fresh list of active shifts.
+- Select an employee, choose Now or a custom clock-out time (device timezone displayed), enter manager PIN and reason, then Confirm clock out.
+- Uses the existing save_shift endpoint with exact shift ID, original start/end, and unchanged clock-in time. Existing authorization, stale-edit/overlap validation, and audit history remain enforced. Managers can do this from any location.
+- Success refreshes the dashboard and removes the completed shift from the dialog. Failed/stale saves retain the form and show the error. Tablet/employee dashboards do not expose this control.
+- Validation: production build/TypeScript passed; exercised component flow verified payload, PIN/reason, success refresh and stale-shift error handling.
