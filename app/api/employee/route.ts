@@ -1,3 +1,5 @@
+import {boundedJson} from '../../../lib/request-body';
+import {storePreflight} from '../../../lib/store-preflight';
 import {adminAuth,authenticatedUser,firestore,managerUid} from '../../../lib/firebase-admin';
 import {readState,root,persist} from '../../../lib/firebase-store';
 import {employeeBinding} from '../../../lib/employee-access';
@@ -27,12 +29,13 @@ export async function POST(req:Request){try{
  if(!sameOrigin(req))return json({error:'Request not allowed.'},403);
  const user=await authenticatedUser(req);if(!user)return json({error:'Sign in to continue.'},401);
  const id=req.headers.get('x-store-id');if(!validStoreId(id))fail('Choose a store.');
- const text=await req.text();if(Buffer.byteLength(text)>10000)fail('Request too large.');
- let p;try{p=JSON.parse(text);}catch{fail('Invalid request.');}
+ await storePreflight(user.uid,id,true);
+ const p=await boundedJson(req);
  if(!['list','link','unlink','archive'].includes(p.action))fail('Unknown action.');
  const email=typeof p.email==='string'?p.email.trim().toLowerCase():'';
- let account:any;if(p.action==='link'){try{account=await adminAuth().getUserByEmail(email);}catch{fail('Create this employee email in Firebase Authentication first.');}if(account.disabled||account.uid===managerUid())fail('Use an enabled, separate employee account.');}
+ let account:any;if(p.action==='link'){try{account=await adminAuth().getUserByEmail(email);}catch{fail('Create this employee email in Firebase Authentication first.');}if(!account.emailVerified)fail('This employee must sign in and verify their email before you link access.');if(account.disabled||account.uid===managerUid())fail('Use an enabled, separate employee account.');}
  const result=await firestore().runTransaction(async tx=>{
+  await storePreflight(user.uid,id,true,tx);
   const state=await readState(tx,id);if(storeRole(user.uid,state,managerUid())!=='manager')fail('Manager access required.',403);
   const gateRef=root(id).collection('attempts').doc('manager'),gateDoc=p.action==='list'?null:await tx.get(gateRef),gate=gateDoc?.data(),now=Date.now();
   if(p.action!=='list'&&!p.pin)fail('Enter your manager PIN to authorize this change.',403);
