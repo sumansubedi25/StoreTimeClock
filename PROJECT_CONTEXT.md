@@ -1,6 +1,6 @@
 # Store Time Clock — project context
 
-Updated October 4, 2026. This is a long-term business time-clock app, initially for three employees, supporting multiple stores and separate managers.
+Updated October 6, 2026. This is a long-term business time-clock app, initially for three employees, supporting multiple stores and separate managers.
 
 ## Project
 
@@ -15,7 +15,7 @@ Updated October 4, 2026. This is a long-term business time-clock app, initially 
 
 The owner retains access to all stores and manager controls. Ownership is configured using the Firebase UID in MANAGER_UID, not by email matching. Managers have assigned stores; their Firebase email login and server-side store role open reports and management tools without an entry PIN; changes retain manager PIN authorization.
 
-Current preferred workflow: employees use their own phones and email accounts, rather than shared store tablets. Create their email/password login in Firebase Authentication, then link it to an employee record using Manager → Employee email access. Authentication alone does not assign a role; Firestore stores permissions.
+Current preferred workflow: employees use their own phones and email accounts. They can register, verify email, and request access using the six-digit store code; manager approval links an existing employee or creates a new record. Manually linking an existing Firebase Authentication email under Employee email access remains supported. Authentication alone does not assign a role; Firestore stores permissions.
 
 One email may be linked to employee records at multiple stores. Employees can clock only themselves in/out and view only their own shifts, decimal hours, and estimated gross pay, including per-store and combined period totals. Removing email access revokes only the selected store while retaining hours/pay history and other store assignments. It does not delete the Firebase login. Employee removal archives records and revokes access for the selected store. Existing PIN/tablet access remains implemented but is not the current preferred workflow.
 
@@ -44,11 +44,11 @@ Firebase website deployments update Android/iOS web apps and the existing APK wh
 
 Store records and chunked JSON backups are in Firestore. Account/store assignments are outside backup generations and stay unchanged by JSON restores. Recheck employee mappings when restoring different employee IDs. Independent downloaded backups protect against losing the Firebase project; Daily backup scheduling was deployed October 5, 2026; automatic backup retention cleanup is not configured.
 
-Employee email access: PR #1. Geolocking for clock-out: PR #2. Latest validation: 32 automated tests and Next.js production build/TypeScript checks passed. Tests use in-memory Firebase substitutes; actual Firebase permissions and phone GPS need live verification. Preserve existing live data during changes.
+Employee email access: PR #1. Geolocking for clock-out: PR #2. Latest full automated run: 58 tests passed after payroll-email implementation. Production build/TypeScript checks previously passed for manager/dashboard changes; the later button-contrast fix received TSX syntax/CSS review only. Tests use in-memory Firebase substitutes; actual Firebase permissions and phone GPS need live verification. Preserve existing live data during changes.
 
 ## Pending, not implemented
 
-Email confirmation to employees after clock-out remains unimplemented. Scheduled semimonthly PDF payroll reports are implemented; Gmail secret setup and separate Cloud Functions deployment by the owner are pending. No live delivery has been verified. See PAYROLL_EMAILS.md.
+Email confirmation to employees after clock-out remains unimplemented. Scheduled semimonthly PDF payroll reports were deployed October 6. Gmail initially rejected credentials; after a new App Password and redeployment, the owner reported the September manual test was working. Individual manager receipt and unattended scheduled execution have not been independently verified. See PAYROLL_EMAILS.md.
 
 ## Working preferences
 
@@ -90,4 +90,8 @@ Managers can remove an employee under Employee email access using Remove employe
 - Each store manager receives their own report; owner receives all reports. Current enabled Firebase Auth accounts and store manager assignment are checked immediately before sending.
 - PDFs include employee hours/rates/gross pay, store totals and detailed shifts, with open shifts/missing rates flagged. Salary calculations are unchanged.
 - Frozen report snapshots and per-recipient delivery status are stored under stores/{id}/payrollReports/{periodStart}. Sent deliveries are skipped. Uncertain SMTP outcomes require review, not blind resend. Later corrections do not automatically resend the snapshot.
-- Activation pending: owner must set Gmail App Password and deploy functions:backups from a fresh ZIP. App Hosting rollout alone does not activate it. No live emails sent during implementation.
+- Activated October 6 by owner deployment. Gmail credentials were replaced after an SMTP 535 failure; the owner then reported the September manual test working. App Hosting rollout alone does not deploy functions. First regular October report is due October 16 at 06:00 Central.
+
+## Shift button visibility (October 6, 2026)
+- PR #20 merged explicit red Delete shift styling, a readable disabled state and navy Save changes styling, including the deletion confirmation action and narrow-screen wrapping.
+- Manager PIN, reason requirement, confirmation and audit behavior remain unchanged. TSX syntax/CSS reviewed; App Hosting rollout completion and live mobile appearance still need confirmation.
