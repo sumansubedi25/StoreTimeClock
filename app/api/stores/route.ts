@@ -1,3 +1,5 @@
+import {boundedJson} from '../../../lib/request-body';
+import {ClockError} from '../../../lib/firebase-clock';
 import {ensureStoreAccessCode} from '../../../lib/store-access-code';
 import {randomUUID} from 'node:crypto';
 import {adminAuth,authenticatedUser,firestore,managerUid} from '../../../lib/firebase-admin';
@@ -23,12 +25,12 @@ export async function POST(req:Request){try{
  if(!sameOrigin(req))return json({error:'Request not allowed.'},403);
  const user=await authenticatedUser(req);if(!user)return json({error:'Sign in to continue.'},401);
  if(user.uid!==managerUid())return json({error:'Only the account owner can create stores or assign managers.'},403);
- const body=await req.text();if(Buffer.byteLength(body)>10000)return json({error:'Request too large.'},413);
- let p:any;try{p=JSON.parse(body);}catch{return json({error:'Invalid request.'},400);}
+ const p=await boundedJson(req);
  if(!['create','assign_manager'].includes(p?.action))return json({error:'Unknown store action.'},400);
  const email=typeof p.managerEmail==='string'?p.managerEmail.trim().toLowerCase():'';
  if(!email)return json({error:'Enter the manager’s Firebase account email.'},400);
  let account;try{account=await adminAuth().getUserByEmail(email);}catch{return json({error:'Create that manager account in Firebase Authentication first.'},400);}
+ if(!account.emailVerified)return json({error:'This manager must sign in and verify their email before assignment.'},400);
  if(account.disabled)return json({error:'That manager account is disabled.'},400);
  const id=p.action==='create'?randomUUID():p.storeId;
  if(!validStoreId(id))return json({error:'Invalid store.'},400);
@@ -47,4 +49,4 @@ export async function POST(req:Request){try{
   return {id};
  });
  return json({ok:true,...result});
- }catch(e){console.error('Store update failed',e instanceof Error?e.message:'Unknown');return json({error:e instanceof Error?e.message:'Could not update the store.'},400);}}
+ }catch(e){console.error('Store update failed',e instanceof Error?e.message:'Unknown');return json({error:e instanceof Error?e.message:'Could not update the store.'},e instanceof ClockError?e.status:400);}}
