@@ -61,3 +61,11 @@ Employee, manager, and owner screens sign out after two minutes without trusted 
 Backup policy updated: no backups after ordinary edits, employee access changes, or punches. Managers can delete backups and all their chunks with manager PIN confirmation. Manual backups and before/after restore safety copies remain. functions/dailyStoreBackup runs at midnight America/Chicago once deployed separately; GitHub App Hosting rollout alone does not activate the scheduler. See DAILY_BACKUPS.md for activation. No automatic deletion/retention policy.
 
 Managers can remove an employee under Employee email access using Remove employee · keep records. This archives the record with archivedAt, clears tablet PIN access, and atomically unlinks only that store's email assignment. Open shifts must be closed first. Active lists exclude archived staff; historical shifts and pay remain. Salary remains unchanged for the archive pay period, then archived staff are excluded from future payroll unless a shift overlaps that period. Backups preserve archive state. Archived employees are listed in the Employee access panel; there is no permanent record deletion or reactivation UI.
+
+## Employee access requests (October 6, 2026)
+- Public employee signup uses Firebase email/password; email verification required before submitting a store request. Existing manager/kiosk/owner logins cannot request employee access.
+- Managers share the store code shown in Employee access requests under Management tools. No public store list is exposed.
+- Requests are pending until that store’s manager/owner approves with manager PIN. Manager can create a new employee without tablet PIN, or link an unlinked active employee to preserve history and pay settings. New employees need their rate set separately; existing salary settings remain unchanged.
+- Employees request additional stores from Request another store; approvals add assignments without replacing other stores. Active shifts block account reassignment.
+- Pending/rejected accounts cannot read or punch. Resolution is atomic and repeated approvals are refused; daily resubmission cooldown and ten-store cap limit requests. Requests and assignments are outside record backups.
+- Daily backup function was deployed by the owner October 5, 2026; first scheduled run still needs confirming in the app.
