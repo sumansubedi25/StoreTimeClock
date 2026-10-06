@@ -44,7 +44,7 @@ Firebase website deployments update Android/iOS web apps and the existing APK wh
 
 Store records and chunked JSON backups are in Firestore. Account/store assignments are outside backup generations and stay unchanged by JSON restores. Recheck employee mappings when restoring different employee IDs. Independent downloaded backups protect against losing the Firebase project; Daily backup scheduling was deployed October 5, 2026; automatic backup retention cleanup is not configured.
 
-Employee email access: PR #1. Geolocking for clock-out: PR #2. Latest full automated run: 58 tests passed after payroll-email implementation. Production build/TypeScript checks previously passed for manager/dashboard changes; the later button-contrast fix received TSX syntax/CSS review only. Tests use in-memory Firebase substitutes; actual Firebase permissions and phone GPS need live verification. Preserve existing live data during changes.
+Employee email access: PR #1. Geolocking for clock-out: PR #2. Latest full automated run: 70 tests passed after request/assignment hardening; production build and TypeScript checks passed. Live mobile rendering of the earlier button-contrast fix remains unconfirmed. Tests use in-memory Firebase substitutes; actual Firebase permissions and phone GPS need live verification. Preserve existing live data during changes.
 
 ## Pending, not implemented
 
@@ -95,3 +95,9 @@ Managers can remove an employee under Employee email access using Remove employe
 ## Shift button visibility (October 6, 2026)
 - PR #20 merged explicit red Delete shift styling, a readable disabled state and navy Save changes styling, including the deletion confirmation action and narrow-screen wrapping.
 - Manager PIN, reason requirement, confirmation and audit behavior remain unchanged. TSX syntax/CSS reviewed; App Hosting rollout completion and live mobile appearance still need confirmation.
+
+## Authorization and email-link hardening (October 6, 2026)
+- Clock/employee POSTs use metadata and individual bindings before body/full-state reads; access-request manager actions authorize before target lookup/history reads. Transaction-level checks protect against concurrent reassignment. Public submissions never load business collections.
+- Streamed request bodies are capped at 10,000 bytes. Only manager-authorized /api/clock?action=backup_import permits 20,000,000 bytes and requires the matching body action. Import UI updated; existing PIN/restore checks retained.
+- Manual employee link, tablet assignment and manager assignment/store creation require account.emailVerified. Existing assignments are preserved, not retroactively audited or revoked. Verify account email is available in the signed-in header; unassigned accounts also have Send verification email.
+- Validation: 70 tests passed, including read instrumentation, transaction reassignment, streamed limits/cancellation, valid large backup import with PIN enforcement and rejection of unverified assignments. Production build/TypeScript passed. No production employee data changed during implementation; live verification remains needed after rollout.
