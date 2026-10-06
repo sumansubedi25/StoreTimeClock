@@ -2,7 +2,7 @@ import {ensureStoreAccessCode,validAccessCode} from '../../../lib/store-access-c
 import {randomUUID} from 'node:crypto';
 import {adminAuth,authenticatedUser,firestore,managerUid} from '../../../lib/firebase-admin';
 import {readState,root,persist} from '../../../lib/firebase-store';
-import {fail,ClockError,audit} from '../../../lib/firebase-clock';
+import {verifyPin,fail,ClockError,audit} from '../../../lib/firebase-clock';
 import {sameOrigin,validStoreId,storeRole} from '../../../lib/store-policy';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -47,6 +47,10 @@ export async function POST(req:Request){try{
    return {data:{ok:true}};
   }
   if(storeRole(user.uid,state,managerUid())!=='manager')fail('Manager access required.',403);
+  const gateRef=root(id).collection('attempts').doc('manager'),gateDoc=p.action==='list'?null:await tx.get(gateRef),gate=gateDoc?.data();
+  if(p.action!=='list'&&!p.pin)fail('Enter your manager PIN to authorize this change.',403);
+  if(gate&&gate.count>=5&&gate.until>now)return {error:'Too many incorrect PINs. Try again in 5 minutes.',status:429};
+  if(p.action!=='list'&&(!state.hash||!verifyPin(p.pin,state.hash))){tx.set(gateRef,{count:gate&&gate.until>now?gate.count+1:1,until:now+300000});return {error:'Incorrect manager PIN.',status:403};}
   const requests=await tx.get(root(id).collection('accessRequests'));
   const links=await tx.get(root(id).collection('employeeAccess'));
   if(p.action==='list'){return {data:{storeId:id,requests:requests.docs.filter(d=>d.data().status==='pending').map(d=>({uid:d.id,...publicRequest(d.data())})),employees:state.employees.filter(e=>!e.archivedAt).map(e=>({id:e.id,name:e.name,linked:links.docs.some(d=>d.id===e.id)}))}};}
@@ -68,8 +72,9 @@ export async function POST(req:Request){try{
   const resolved={...request,status:p.action==='approve'?'approved':'rejected',resolvedAt:now,resolvedBy:user.uid,...(employeeId?{employee:employeeId}:{})};
   tx.set(root(id).collection('accessRequests').doc(p.uid),resolved);tx.set(firestore().doc('accessRequests/'+p.uid).collection('stores').doc(id),resolved);
   
+  if(gateDoc?.exists)tx.delete(gateRef);
   audit(after,'access_'+p.action,request.name,'Employee access request '+resolved.status,null,{email:request.email,employee:employeeId??null});persist(tx,state,after);
   return {data:{ok:true}};
  });
- if(p.action==='list')return json({...result.data,accessCode:await ensureStoreAccessCode(id)});return json(result.data);
+ if('error' in result)return json({error:result.error},result.status);if(p.action==='list')return json({...result.data,accessCode:await ensureStoreAccessCode(id)});return json(result.data);
 }catch(e){return json({error:e instanceof ClockError?e.message:'Could not complete access request. Check the store code and try again.'},e instanceof ClockError?e.status:503);}}
