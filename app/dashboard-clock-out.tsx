@@ -1,0 +1,26 @@
+'use client';
+import {useState} from 'react';
+import {useStoreApi} from './store-context';
+import {Button} from '@/components/ui/button';
+import {Input} from '@/components/ui/input';
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from '@/components/ui/dialog';
+type Shift={id:string;employee:string;name:string;start:number;end:number|null};
+const fmt=(at:number)=>new Date(at).toLocaleString('en-US',{timeZone:'America/Chicago',weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+const local=(at:number)=>{const d=new Date(at);return new Date(at-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
+export default function DashboardClockOut({count,onSaved}:{count:number;onSaved:()=>Promise<void>}){
+ const api=useStoreApi();
+ const [open,setOpen]=useState(false),[active,setActive]=useState<Shift[]>([]),[selected,setSelected]=useState<Shift|null>(null),[pin,setPin]=useState(''),[reason,setReason]=useState(''),[mode,setMode]=useState('now'),[end,setEnd]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+ async function call(body:any){const r=await api('/api/clock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),d:any=await r.json();if(!r.ok)throw Error(d.error);return d;}
+ async function refresh(){setBusy(true);setError('');setSelected(null);try{const d=await call({action:'report'});setActive(d.shifts.filter((s:Shift)=>s.end===null));}catch(e:any){setActive([]);setError(e.message);}finally{setBusy(false);}}
+ function show(){setOpen(true);setPin('');setReason('');setMessage('');setActive([]);void refresh();}
+ function choose(s:Shift){setSelected(s);setMode('now');setEnd(local(Date.now()));setReason('');setError('');setMessage('');}
+ async function save(){if(!selected||busy)return;setBusy(true);setError('');setMessage('');try{
+  const finish=mode==='now'?Date.now():new Date(end).getTime();
+  if(!Number.isFinite(finish)||finish<=selected.start)throw Error('Choose a clock-out time after clock-in.');
+  if(!reason.trim())throw Error('Enter a reason for this manual clock-out.');
+  await call({action:'save_shift',pin,employee:selected.employee,shift:selected.id,originalStart:selected.start,originalEnd:null,start:selected.start,end:finish,reason:reason.trim()});
+  setActive(current=>current.filter(s=>s.id!==selected.id));setSelected(null);setReason('');setPin('');setMessage(selected.name+' was clocked out.');
+  try{await onSaved();}catch{setError('Clock-out was saved, but the dashboard could not refresh. Close this window and press Refresh.');}
+ }catch(e:any){setError(e.message);}finally{setBusy(false);}}
+ return <><button type="button" className="clocked-in-action" onClick={show} aria-label={`${count} clocked in. View employees and manually clock out.`}><strong>{count}</strong><span>Clocked in</span><small>View / clock out</small></button><Dialog open={open} onOpenChange={value=>{if(!busy){setOpen(value);if(!value){setSelected(null);setPin('');}}}}><DialogContent className="admin-dialog"><DialogHeader><DialogTitle>{selected?'Clock out '+selected.name:'Clocked-in employees'}</DialogTitle><DialogDescription>Manually clock out an employee from any location. A manager PIN is required, and your reason is saved in the change history.</DialogDescription></DialogHeader>{error&&<p className="notice error" role="alert">{error}</p>}{message&&<p className="notice" role="status">{message}</p>}{busy&&!selected&&<p role="status">Loading…</p>}{selected?<form onSubmit={e=>{e.preventDefault();void save();}}><p>Clocked in: <b>{fmt(selected.start)}</b> · Central Time</p><label htmlFor="quick-out-mode">Clock-out time</label><select id="quick-out-mode" value={mode} disabled={busy} onChange={e=>setMode(e.target.value)}><option value="now">Now</option><option value="custom">Choose a time</option></select>{mode==='custom'&&<><label htmlFor="quick-out-end">Date and time ({Intl.DateTimeFormat().resolvedOptions().timeZone})</label><Input id="quick-out-end" type="datetime-local" required value={end} disabled={busy} onChange={e=>setEnd(e.target.value)}/></>}<label htmlFor="quick-out-reason">Reason for clock-out</label><Input id="quick-out-reason" required maxLength={500} placeholder="e.g. Employee forgot to clock out" value={reason} disabled={busy} onChange={e=>setReason(e.target.value)}/><label htmlFor="quick-out-pin">Manager PIN</label><Input id="quick-out-pin" type="password" inputMode="numeric" autoComplete="off" minLength={6} maxLength={12} required value={pin} disabled={busy} onChange={e=>setPin(e.target.value)}/><div className="form-actions"><Button type="submit" disabled={busy}>{busy?'Saving…':'Confirm clock out'}</Button><Button type="button" variant="outline" disabled={busy} onClick={()=>{setSelected(null);setError('');setPin('');}}>Back</Button></div></form>:<><div className="quick-clock-out-list">{active.map(s=><div key={s.id}><div><b>{s.name}</b><small>Since {fmt(s.start)} · Central Time</small></div><Button disabled={busy} onClick={()=>choose(s)}>Clock out</Button></div>)}</div>{!busy&&!active.length&&!error&&<p>No employees are currently clocked in.</p>}<Button variant="outline" disabled={busy} onClick={()=>void refresh()}>Refresh active shifts</Button></>}</DialogContent></Dialog></>;
+}
