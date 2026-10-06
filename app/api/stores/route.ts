@@ -1,3 +1,4 @@
+import {ensureStoreAccessCode} from '../../../lib/store-access-code';
 import {randomUUID} from 'node:crypto';
 import {adminAuth,authenticatedUser,firestore,managerUid} from '../../../lib/firebase-admin';
 import {storeMeta,storeRole,storeSettings,validStoreId,sameOrigin} from '../../../lib/store-policy';
@@ -15,7 +16,8 @@ export async function GET(req:Request){try{
  for(const d of employeeDocs)if(d.exists)docs.set(d.id,d.data()!);
  if(user.uid===owner&&!docs.has('main'))docs.set('main',{});
  const stores=[...docs].flatMap(([id,data])=>{const meta=storeMeta(id,data,owner),role=storeRole(user.uid,meta,owner)??(assigned.includes(id)?'employee':null);return role?[{id,name:meta.name,role,...(user.uid===owner?{managerEmail:meta.managerEmail,managerUid:meta.managerUid}:{})}]:[];}).sort((a,b)=>a.name.localeCompare(b.name));
- return json({owner:user.uid===owner,stores});
+ const withCodes=await Promise.all(stores.map(async s=>({...s,accessCode:await ensureStoreAccessCode(s.id)})));
+ return json({owner:user.uid===owner,stores:withCodes});
  }catch(e){console.error('Store listing failed',e instanceof Error?e.message:'Unknown');return json({error:'Could not load store access. Try again.'},503);}}
 export async function POST(req:Request){try{
  if(!sameOrigin(req))return json({error:'Request not allowed.'},403);
