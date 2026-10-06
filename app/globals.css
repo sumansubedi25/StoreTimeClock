@@ -97,3 +97,5 @@ main.login-page{background:#e3f2fd;width:100%;max-width:none;min-height:100vh;mi
 .manager-shortcuts>button{background:#133651;color:#fff;min-height:46px;padding:10px 18px;}
 .manager-shortcuts>p{line-height:1.6;}
 @media(max-width:720px){.manager-home{grid-template-columns:1fr;}.manager-counts{gap:8px;}.manager-counts>div{padding:12px 8px;}.manager-counts strong{font-size:26px;}}
+
+button.archive-employee{display:block;background:#b42332;color:#fff;border:1px solid #b42332;min-height:44px;padding:10px 16px;margin-top:18px;white-space:normal;}button.archive-employee:disabled{opacity:.5;}

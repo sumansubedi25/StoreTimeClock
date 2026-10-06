@@ -5,7 +5,7 @@ import type {Transaction} from 'firebase-admin/firestore';
 export async function employeeBinding(tx:Transaction,uid:string,storeId:string,state:State){
  const claim=await tx.get(firestore().doc('storeAccounts/'+uid));
  const id=claim.data()?.role==='employee'?claim.data()?.stores?.[storeId]:null;
- if(typeof id!=='string'||!state.employees.some(e=>e.id===id))return null;
+ if(typeof id!=='string'||!state.employees.some(e=>e.id===id&&!e.archivedAt))return null;
  const link=await tx.get(root(storeId).collection('employeeAccess').doc(id));
  return link.data()?.uid===uid?id:null;
 }

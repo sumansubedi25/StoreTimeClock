@@ -29,7 +29,7 @@ export async function POST(req:Request){try{
  const id=req.headers.get('x-store-id');if(!validStoreId(id))fail('Choose a store.');
  const text=await req.text();if(Buffer.byteLength(text)>10000)fail('Request too large.');
  let p;try{p=JSON.parse(text);}catch{fail('Invalid request.');}
- if(!['list','link','unlink'].includes(p.action))fail('Unknown action.');
+ if(!['list','link','unlink','archive'].includes(p.action))fail('Unknown action.');
  const email=typeof p.email==='string'?p.email.trim().toLowerCase():'';
  let account:any;if(p.action==='link'){try{account=await adminAuth().getUserByEmail(email);}catch{fail('Create this employee email in Firebase Authentication first.');}if(account.disabled||account.uid===managerUid())fail('Use an enabled, separate employee account.');}
  const result=await firestore().runTransaction(async tx=>{
@@ -38,9 +38,9 @@ export async function POST(req:Request){try{
   if(gate&&gate.count>=5&&gate.until>now)return {error:'Too many incorrect PINs. Try again in 5 minutes.',status:429};
   if(!state.hash||!verifyPin(p.pin,state.hash)){tx.set(gateRef,{count:gate&&gate.until>now?gate.count+1:1,until:now+300000});return {error:'Incorrect manager PIN.',status:403};}
   const links=await tx.get(root(id).collection('employeeAccess'));
-  if(p.action==='list'){if(gateDoc.exists)tx.delete(gateRef);return {data:{employees:state.employees.map(e=>({id:e.id,name:e.name,email:links.docs.find(d=>d.id===e.id)?.data()?.email??''}))}};}
-  if(!state.employees.some(e=>e.id===p.employee))fail('Choose an employee.');
-  if(state.shifts.some(s=>s.employee===p.employee&&s.end===null))fail('Clock this employee out before changing email access.');
+  if(p.action==='list'){if(gateDoc.exists)tx.delete(gateRef);return {data:{employees:state.employees.map(e=>({id:e.id,name:e.name,archivedAt:e.archivedAt??null,email:links.docs.find(d=>d.id===e.id)?.data()?.email??''}))}};}
+  const employee=state.employees.find(e=>e.id===p.employee);if(!employee)fail('Choose an employee.');if(employee.archivedAt)fail('This employee is archived.');
+  if(state.shifts.some(s=>s.employee===p.employee&&s.end===null))fail('Clock this employee out before removing them or changing access.');
   const old=links.docs.find(d=>d.id===p.employee)?.data(),oldRef=old?firestore().doc('storeAccounts/'+old.uid):null,oldDoc=oldRef?await tx.get(oldRef):null;
   const newRef=account?firestore().doc('storeAccounts/'+account.uid):null,newDoc=newRef?await tx.get(newRef):null;
   if(account){
@@ -53,7 +53,7 @@ export async function POST(req:Request){try{
   const linkRef=root(id).collection('employeeAccess').doc(p.employee);
   if(account){tx.set(newRef!,{role:'employee',stores:{...(newDoc?.data()?.stores??{}),[id]:p.employee}});tx.set(linkRef,{uid:account.uid,email});}else tx.delete(linkRef);
   if(gateDoc.exists)tx.delete(gateRef);
-  const after=structuredClone(state);audit(after,p.action,p.employee,'Employee email access updated',{email:old?.email??''},{email:account?email:''});persist(tx,state,after);
+  const after=structuredClone(state);if(p.action==='archive'){const record=after.employees.find(e=>e.id===p.employee)!;record.archivedAt=now;record.hash=null;}audit(after,p.action,employee.name,p.action==='archive'?'Employee removed from active staff; records archived':'Employee email access updated',{email:old?.email??''},{email:account?email:''});persist(tx,state,after);
   return {data:{ok:true},state:{...after,revision:state.revision+1}};
  });
  if('error' in result)return json({error:result.error},result.status);
