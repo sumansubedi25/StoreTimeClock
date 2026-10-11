@@ -1,4 +1,4 @@
-const VERSION = "time-clock-shell-v1";
+const VERSION = "time-clock-shell-v2-midnight";
 const SHELL = ["/manifest.webmanifest", "/favicon.svg", "/pwa-icon-192.png", "/pwa-icon-512.png"];
 
 self.addEventListener("install", (event) => {

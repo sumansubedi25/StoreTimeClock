@@ -8,6 +8,14 @@ Multi-store time tracking with Firebase Authentication, Firestore, Next.js App H
 - App Hosting backend: `webbchapel`, region `us-east4`, deployment branch `main`
 - Documentation updated October 6, 2026.
 
+## Midnight + Teal interface (October 10, 2026)
+
+The employee interface uses Home, History, and Hours & pay bottom navigation, with a single context-sensitive Clock In/Out action. Home hours belong to the selected store and pay period; the pay view labels all-store totals explicitly. Location is checked only when punching; the interface does not claim an unperformed location check succeeded.
+
+Managers have responsive navigation for Overview, Employees, Shifts, Hours & pay, Backups, and Settings. Overview includes current staff status, recent shifts, and read-only payroll totals. Existing management forms and PIN authorization remain in the tools view. The dark palette also covers sign-in, owner screens, kiosk controls, dialogs, selects, and the installed web-app shell.
+
+Backend authorization, record formats, payroll calculations, and schedules are unchanged. Build and automated checks do not establish live visual or Firebase rollout verification.
+
 ## Current status
 
 The app has migrated to Firebase. Daily backups were deployed October 5 and updated October 6. Scheduled payroll PDF emails were deployed October 6; after replacing rejected Gmail credentials, the owner reported the manually triggered September report was working. The first regular October 1–15 report is scheduled for October 16 at 6 AM Central.
