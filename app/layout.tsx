@@ -1,13 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import PwaRegister from "./pwa-register";
 
 export const metadata: Metadata = {
   title: "Store Time Clock",
   description: "Clock in, clock out, and track employee hours.",
-  other: {
-    "codex-preview": "development",
-  },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
@@ -15,13 +12,15 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
 };
 
+export const viewport: Viewport = { themeColor: "#0F172A", colorScheme: "dark" };
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body className="antialiased">
         <PwaRegister />
         {children}
