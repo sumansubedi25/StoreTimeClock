@@ -125,3 +125,5 @@ body{font-family:Arial,Helvetica,sans-serif;line-height:1.5}button,input,select{
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 
 .manager-sidebar nav a{text-decoration:none;min-height:44px}.manager-sidebar nav a:focus-visible{outline:2px solid #2dd4bf;outline-offset:2px}
+
+.session-greeting{max-width:1500px;margin:auto;padding:20px 24px 0}.user-greeting{font-size:24px;font-weight:700;margin:0 0 12px;color:#f8fafc}.user-greeting span{color:#5eead4}.employee-heading .user-greeting{font-size:22px;margin-top:12px}@media(max-width:720px){.session-greeting{padding:16px 16px 0}.user-greeting{font-size:21px}}
