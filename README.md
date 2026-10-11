@@ -12,9 +12,11 @@ Multi-store time tracking with Firebase Authentication, Firestore, Next.js App H
 
 The employee interface uses Home, History, and Hours & pay bottom navigation, with a single context-sensitive Clock In/Out action. Home hours belong to the selected store and pay period; the pay view labels all-store totals explicitly. Location is checked only when punching; the interface does not claim an unperformed location check succeeded.
 
-Managers have responsive navigation for Overview, Employees, Shifts, Hours & pay, Backups, and Settings. Overview includes only store and current staff status. Each manager navigation item opens its own /manager/ page; Employees, Shifts, Hours & pay, Backups, and Settings mount only their own tools. Links retain the authorized selected store, and direct links use the same Firebase role checks. Existing management forms and PIN authorization remain on each tools page. The dark palette also covers sign-in, owner screens, kiosk controls, dialogs, selects, and the installed web-app shell.
+Managers have responsive navigation for Overview, Employees, Shifts, Hours & pay, Backups, and Settings. Overview includes only store and current staff status. Each manager navigation item opens its own /manager/ page; Employees, Shifts, Hours & pay, Backups, and Settings mount only their own tools. Navigation performs a fresh page load to avoid retaining scroll position or old client navigation state. Links retain the authorized selected store, and direct links use the same Firebase role checks. Existing management forms and PIN authorization remain on each tools page. The dark palette also covers sign-in, owner screens, kiosk controls, dialogs, selects, and the installed web-app shell.
 
 Backend authorization, record formats, payroll calculations, and schedules are unchanged. Build and automated checks do not establish live visual or Firebase rollout verification.
+
+Greetings use the employee record name or Firebase display name (falling back to the email name). They update while the page is open: morning 5 AM–noon, afternoon noon–5 PM, evening 5–10 PM, and night 10 PM–5 AM, all in America/Chicago.
 
 ## Current status
 
