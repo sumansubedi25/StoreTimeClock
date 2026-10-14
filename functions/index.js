@@ -28,3 +28,16 @@ exports.payPeriodPayrollEmail=onSchedule({
   auth:{user:owner.email,pass:gmailPassword.value().replace(/\s/g,'')},connectionTimeout:20000,greetingTimeout:20000,socketTimeout:60000});
  try{await transport.verify();await runPayrollEmails({db:getFirestore(),auth,ownerUid:ownerUid.value(),transport,scheduleTime:event.scheduleTime});}finally{transport.close();}
 });
+
+// Process committed punch events asynchronously, including events queued before deployment.
+const {runPendingPunchEmails}=require('./punch-email');
+exports.punchConfirmationEmail=onSchedule({
+ schedule:'every 1 minutes',timeZone:'America/Chicago',region:'us-east4',
+ timeoutSeconds:540,memory:'256MiB',maxInstances:1,concurrency:1,secrets:[gmailPassword],
+},async()=>{
+ const auth=getAuth(),owner=await auth.getUser(ownerUid.value());
+ if(owner.disabled||!owner.email||!owner.emailVerified)throw Error('Verified owner email is required.');
+ const transport=nodemailer.createTransport({host:'smtp.gmail.com',port:465,secure:true,
+  auth:{user:owner.email,pass:gmailPassword.value().replace(/\s/g,'')},connectionTimeout:20000,greetingTimeout:20000,socketTimeout:60000});
+ try{await runPendingPunchEmails({db:getFirestore(),auth,ownerUid:ownerUid.value(),transport});}finally{transport.close();}
+});
