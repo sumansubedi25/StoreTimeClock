@@ -72,6 +72,7 @@ export async function POST(req:Request){try{
   }
   if(p.action==='in')await checkOtherStores(tx,before,p.employee,'in',now,null);
   if(p.action==='save_shift')await checkOtherStores(tx,before,p.employee,'save_shift',p.start,p.end);
+  const punchLink=isPunch&&employee?await tx.get(root(storeId).collection('employeeAccess').doc(employee.id)):null;
   const after=structuredClone(before);
   let data:any={ok:true};
   if(!p.action.startsWith('backup_'))try{data=applyAction(after,p,now);}catch(e){if(e instanceof ClockError)throw e;fail(e instanceof Error?e.message:'Invalid request.');}
@@ -79,6 +80,17 @@ export async function POST(req:Request){try{
   if(previousClaim)tx.delete(previousClaim);
   if(tabletClaim)tx.set(tabletClaim,{role:'kiosk',storeId});
   const changed=!readOnly.has(p.action);if(changed)persist(tx,before,after);
+  // Commit the notification with the successful punch; never send SMTP inside a transaction.
+  if(isPunch&&employee){
+   const shift=p.action==='in'?after.shifts.find(s=>s.employee===employee.id&&s.end===null):after.shifts.find(s=>s.employee===employee.id&&s.end===now);
+   if(!shift)throw Error('Punch shift missing.');
+   const eventId=before.generation+'-'+shift.id+'-'+p.action;
+   tx.set(root(storeId).collection('punchEmails').doc(eventId),{
+    version:1,storeId,storeName:after.name,employeeId:employee.id,employeeName:employee.name,
+    employeeUid:punchLink?.data()?.uid??null,managerUid:before.managerUid||(storeId==='main'?managerUid():null),
+    action:p.action,at:now,shiftId:shift.id,start:shift.start,end:shift.end,createdAt:now,processedAt:null,
+   });
+  }
   return {data,state:changed?{...after,revision:before.revision+1}:before,changed};
  });
  if('error' in result)return json({error:result.error},result.status);

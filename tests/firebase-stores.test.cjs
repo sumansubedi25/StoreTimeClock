@@ -137,3 +137,17 @@ test('bounded reader rejects declared oversize before consumption and malformed 
  let pulls=0;const stream=new ReadableStream({pull(c){pulls++;c.close();}},{highWaterMark:0});await assert.rejects(boundedJson(new Request('http://localhost',{method:'POST',body:stream,duplex:'half',headers:{'Content-Length':'20000001'}}),20000000),e=>e.status===413);assert.equal(pulls,0);
  for(const body of ['null','[]','{'])await assert.rejects(boundedJson(new Request('http://localhost',{method:'POST',body})),e=>e.status===400);
 });
+test('successful punches atomically queue notifications; rejected punches and edits do not',async()=>{
+ fixture();database.getRows().get('stores/a').geofenceEnabled=false;
+ database.getRows().set('stores/a/employeeAccess/same-id',{uid:'alice'});
+ database.getRows().set('storeAccounts/alice',{role:'employee',stores:{a:'same-id'}});
+ const events=()=>[...database.getRows()].filter(([k])=>k.startsWith('stores/a/punchEmails/'));
+ assert.equal((await clock.POST(req('alice','a',{action:'in'}))).status,200);
+ assert.equal(events().length,1);const first=events()[0][1];assert.equal(first.employeeUid,'alice');assert.equal(first.managerUid,'manager-a');assert.equal(first.processedAt,null);
+ assert.equal((await clock.POST(req('alice','a',{action:'in'}))).status,409);assert.equal(events().length,1);
+ await new Promise(r=>setTimeout(r,3));
+ assert.equal((await clock.POST(req('alice','a',{action:'out'}))).status,200);assert.equal(events().length,2);
+ const last=events().find(([,e])=>e.action==='out')[1];assert.equal(last.shiftId,first.shiftId);assert(last.end>last.start);
+ assert.equal((await clock.POST(req('manager-a','a',{action:'edit_employee',employee:'same-id',pin:'123456',name:'Alice',reason:'Name correction'}))).status,200);assert.equal(events().length,2);
+ assert.equal((await clock.POST(req('manager-b','a',{action:'in',employee:'same-id'}))).status,403);assert.equal(events().length,2);
+});

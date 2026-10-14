@@ -75,7 +75,7 @@ Backups are inside the same Firebase project. Download independent copies for re
 
 Gmail credentials live in Firebase Secret Manager, never in GitHub. The sender is the owner Firebase Authentication email. Reports are frozen snapshots; later corrections do not automatically resend them. Sent deliveries are skipped on retries; uncertain delivery requires review.
 
-See [PAYROLL_EMAILS.md](PAYROLL_EMAILS.md) for configuration, logs and recovery. **Employee clock-out confirmation emails remain unimplemented.**
+See [PAYROLL_EMAILS.md](PAYROLL_EMAILS.md) for configuration, logs and recovery. **Clock-in/out confirmation email code is implemented; the separate `punchConfirmationEmail` Cloud Function must be deployed to activate delivery.** See [PUNCH_EMAILS.md](PUNCH_EMAILS.md).
 
 ## Deployment and updates
 
