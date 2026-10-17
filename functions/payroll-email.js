@@ -3,7 +3,7 @@ const {lastClosedPeriod,buildReport,reportPdf}=require('./payroll-report');
 const validEmail=value=>typeof value==='string'&&/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value);
 async function account(auth,uid){if(!uid)return null;try{const user=await auth.getUser(uid);return !user.disabled&&validEmail(user.email)?{uid,email:user.email.toLowerCase()}:null;}catch(e){if(e.code==='auth/user-not-found')return null;throw e;}}
 async function recipientsFor(auth,meta,storeId,ownerUid){const owner=await account(auth,ownerUid);if(!owner)throw Error('Owner account requires an enabled login and valid email.');const manager=await account(auth,meta.managerUid||(storeId==='main'?ownerUid:''));return {owner,manager,recipients:manager&&manager.email!==owner.email?[owner,manager]:[owner]};}
-async function snapshotReport(db,storeId,period){const root=db.doc('stores/'+storeId),ref=root.collection('payrollReports').doc(period.startDate);return db.runTransaction(async tx=>{
+async function snapshotReport(db,storeId,period,reportId=period.startDate){const root=db.doc('stores/'+storeId),ref=root.collection('payrollReports').doc(reportId);return db.runTransaction(async tx=>{
  const existing=await tx.get(ref);if(existing.data()?.report)return existing.data().report;
  const doc=await tx.get(root),meta=doc.data();if(!meta?.hash)return null;
  const gen=root.collection('generations').doc(meta.generation??'initial');const names=['employees','shifts','payRates'];const snapshots=await Promise.all(names.map(n=>tx.get(gen.collection(n))));
@@ -17,13 +17,20 @@ async function deliverOnce(db,ref,recipient,send){const key=createHash('sha256')
  try{const result=await send();if(result===null){await delivery.set({status:'cancelled',reason:'Recipient assignment changed'},{merge:true});return;}if(!result.accepted?.some(e=>(typeof e==='string'?e:e.address)?.toLowerCase()===recipient.email))throw Error('SMTP did not accept this recipient');await delivery.set({status:'sent',sentAt:new Date().toISOString(),messageId:result.messageId??''},{merge:true});}
  catch(error){await delivery.set({status:'needs_review',failedAt:new Date().toISOString(),errorCode:typeof error.code==='string'?error.code:'DELIVERY_UNCERTAIN'},{merge:true});throw Error('Email delivery failed or is uncertain; inspect payrollReports delivery status before retrying.');}
 }
-async function runPayrollEmails({db,auth,ownerUid,transport,scheduleTime,makePdf=reportPdf}){
- const period=lastClosedPeriod(scheduleTime),stores=await db.collection('stores').get(),failures=[];
+async function runPayrollEmails({db,auth,ownerUid,transport,scheduleTime,makePdf=reportPdf,now=Date.now()}){
+ const period=lastClosedPeriod(scheduleTime);
+ if(period.end>now)throw Error('Cannot finalize payroll before the pay period closes.');
+ const stores=await db.collection('stores').get(),failures=[];
  for(const store of stores.docs){try{
   const root=db.doc('stores/'+store.id),meta=(await root.get()).data();if(!meta?.hash)continue;
   const {owner,manager,recipients}=await recipientsFor(auth,meta,store.id,ownerUid);
-  const report=await snapshotReport(db,store.id,period);if(!report)continue;
-  const pdf=await makePdf(report),ref=root.collection('payrollReports').doc(period.startDate);
+  // Preserve premature test snapshots and their receipts, but give the completed report its own delivery identity.
+  const legacy=(await root.collection('payrollReports').doc(period.startDate).get()).data();
+  const generated=Date.parse(legacy?.report?.generatedAt??legacy?.createdAt);
+  const premature=Number.isFinite(generated)&&generated<period.end;
+  const reportId=period.startDate+(premature?'-final':'');
+  const report=await snapshotReport(db,store.id,period,reportId);if(!report)continue;
+  const pdf=await makePdf(report),ref=root.collection('payrollReports').doc(reportId);
   for(const recipient of recipients){try{await deliverOnce(db,ref,recipient,async()=>{
    const latest=(await root.get()).data(),current=await account(auth,recipient.uid);if(!current||current.email!==recipient.email)return null;
    if(recipient.uid!==ownerUid&&recipient.uid!==(latest?.managerUid||(store.id==='main'?ownerUid:'')))return null;
