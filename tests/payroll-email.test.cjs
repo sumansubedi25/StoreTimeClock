@@ -12,3 +12,26 @@ test('store reports stay isolated, owner gets all, retries use same snapshot and
 test('uncertain delivery is flagged and not blindly resent while other stores continue',async()=>{const f=fixture();f.transport.sendMail=async mail=>{f.sent.push(mail);if(mail.to==='a@example.com')throw Error('connection lost after SMTP data');return {accepted:[mail.to]};};await assert.rejects(runPayrollEmails(f));assert.equal(f.sent.length,4);assert([...f.db.rows.values()].some(x=>x.status==='needs_review'));await assert.rejects(runPayrollEmails(f));assert.equal(f.sent.length,4);});
 test('manager assignment is checked again immediately before sending',async()=>{const f=fixture();f.transport.sendMail=async mail=>{f.sent.push(mail);if(mail.to==='owner@example.com')f.db.rows.get('stores/a').managerUid='manager-b';return {accepted:[mail.to]};};await runPayrollEmails(f);assert(!f.sent.some(m=>m.to==='a@example.com'));});
 test('PDF renders summary and paginated detailed shifts',async()=>{const f=fixture(),p=lastClosedPeriod(f.scheduleTime);const state={storeId:'demo',name:'Example Store',employees:[{id:'e',name:'Example Employee'}],payRates:[{employee:'e',type:'hourly',cents:1750,effective:p.startDate}],shifts:Array.from({length:65},(_,i)=>({id:String(i),employee:'e',start:p.start+i*3600000,end:p.start+(i+1)*3600000}))};const pdf=await reportPdf(buildReport(state,p));assert.equal(pdf.subarray(0,4).toString(),'%PDF');require('node:fs').writeFileSync('/tmp/timeclock-payroll-preview.pdf',pdf);});
+
+test('premature test receipts do not suppress final reports and final retries do not duplicate',async()=>{
+ const f=fixture(),p=lastClosedPeriod(f.scheduleTime);
+ const ref='stores/a/payrollReports/'+p.startDate;
+ const early={storeId:'a',generatedAt:'2026-10-06T22:31:23Z',totalCents:1};
+ f.db.rows.set(ref,{report:early,createdAt:early.generatedAt});
+ const {createHash}=require('node:crypto');
+ for(const [uid,email] of [['owner','owner@example.com'],['manager-a','a@example.com']]){
+  const key=createHash('sha256').update(uid+':'+email).digest('hex');
+  f.db.rows.set(ref+'/deliveries/'+key,{uid,email,status:'sent'});
+ }
+ await runPayrollEmails(f);
+ assert.equal(f.sent.length,4);
+ assert.deepEqual(f.db.rows.get(ref).report,early);
+ assert.equal(f.db.rows.get(ref+'-final').report.totalCents,12000);
+ await runPayrollEmails(f);assert.equal(f.sent.length,4);
+});
+test('future schedule cannot finalize an open period',async()=>{
+ const f=fixture();f.now=Date.parse('2026-10-06T22:00:00Z');
+ await assert.rejects(runPayrollEmails(f),/before the pay period closes/);
+ assert.equal(f.sent.length,0);
+ assert(![...f.db.rows.keys()].some(k=>k.includes('/payrollReports/')));
+});

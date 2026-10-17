@@ -28,3 +28,19 @@ The worker marks `processedAt` and status on the event. Per-recipient status is 
 These event and delivery records are outside the existing business-record JSON backups and have no automatic retention cleanup. Restoring business records does not replay emails.
 
 Disable the Cloud Scheduler job for this function to pause sending; saved shifts continue to work and new events remain queued.
+
+## Recovering a premature payroll test
+
+Payroll now refuses to finalize a period that has not ended in real time. If an
+existing payroll snapshot was generated before its period ended, the worker
+preserves that document and its delivery receipts and creates a fresh snapshot
+under `payrollReports/{periodStart}-final`. Final deliveries have their own
+receipts and remain deduplicated on retries. Valid closed-period snapshots keep
+their existing delivery behavior. This does not change punch email delivery.
+
+After deploying `functions:backups`, run the existing payPeriodPayrollEmail
+Cloud Scheduler job once to recover the most recently closed period. During
+October 16–31 this selects October 1–15. Deployment alone does not run payroll.
+Verify the final report and receipts for each store; do not delete the original
+test report. Reports reflect recorded shifts at snapshot time, including any
+manager corrections made since period close.
