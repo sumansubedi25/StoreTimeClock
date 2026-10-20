@@ -31,7 +31,9 @@ Disable the Cloud Scheduler job for this function to pause sending; saved shifts
 
 ## Recovering a premature payroll test
 
-Payroll now refuses to finalize a period that has not ended in real time. If an
+Payroll caps future scheduler timestamps at the actual execution time, so manual
+runs select the latest closed period. Past timestamps remain unchanged for delayed
+retries. A final guard refuses any period that has not ended in real time. If an
 existing payroll snapshot was generated before its period ended, the worker
 preserves that document and its delivery receipts and creates a fresh snapshot
 under `payrollReports/{periodStart}-final`. Final deliveries have their own

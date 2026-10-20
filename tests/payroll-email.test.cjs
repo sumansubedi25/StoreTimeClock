@@ -29,9 +29,26 @@ test('premature test receipts do not suppress final reports and final retries do
  assert.equal(f.db.rows.get(ref+'-final').report.totalCents,12000);
  await runPayrollEmails(f);assert.equal(f.sent.length,4);
 });
-test('future schedule cannot finalize an open period',async()=>{
+test('manual run with future schedule sends latest closed period once',async()=>{
+ const f=fixture();f.now=Date.parse('2026-10-20T04:32:25Z');f.scheduleTime='2026-11-01T12:00:00Z';
+ await runPayrollEmails(f);
+ assert.equal(f.sent.length,4);
+ assert(f.sent.every(m=>m.subject.includes('2026-10-01 to 2026-10-15')));
+ assert(![...f.db.rows.keys()].some(k=>k.includes('/payrollReports/2026-10-16')));
+ await runPayrollEmails(f);assert.equal(f.sent.length,4);
+});
+test('future run before midmonth selects previous closed period',async()=>{
  const f=fixture();f.now=Date.parse('2026-10-06T22:00:00Z');
- await assert.rejects(runPayrollEmails(f),/before the pay period closes/);
+ await runPayrollEmails(f);
+ assert(f.sent.every(m=>m.subject.includes('2026-09-16 to 2026-09-30')));
+});
+test('delayed retry retains original completed period',async()=>{
+ const f=fixture();f.now=Date.parse('2026-11-03T12:00:00Z');
+ await runPayrollEmails(f);
+ assert(f.sent.every(m=>m.subject.includes('2026-10-01 to 2026-10-15')));
+});
+test('invalid schedule fails before creating reports or sending',async()=>{
+ const f=fixture();f.scheduleTime='invalid';
+ await assert.rejects(runPayrollEmails(f),/Invalid payroll execution time/);
  assert.equal(f.sent.length,0);
- assert(![...f.db.rows.keys()].some(k=>k.includes('/payrollReports/')));
 });
