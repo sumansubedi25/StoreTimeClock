@@ -18,7 +18,10 @@ async function deliverOnce(db,ref,recipient,send){const key=createHash('sha256')
  catch(error){await delivery.set({status:'needs_review',failedAt:new Date().toISOString(),errorCode:typeof error.code==='string'?error.code:'DELIVERY_UNCERTAIN'},{merge:true});throw Error('Email delivery failed or is uncertain; inspect payrollReports delivery status before retrying.');}
 }
 async function runPayrollEmails({db,auth,ownerUid,transport,scheduleTime,makePdf=reportPdf,now=Date.now()}){
- const period=lastClosedPeriod(scheduleTime);
+ // Manual scheduler runs can carry a future scheduled time. Never select a future period.
+ const scheduled=Date.parse(scheduleTime);
+ if(!Number.isFinite(scheduled)||!Number.isFinite(now))throw Error('Invalid payroll execution time.');
+ const period=lastClosedPeriod(Math.min(scheduled,now));
  if(period.end>now)throw Error('Cannot finalize payroll before the pay period closes.');
  const stores=await db.collection('stores').get(),failures=[];
  for(const store of stores.docs){try{
